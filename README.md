@@ -8,9 +8,10 @@ Every number in a report comes from the site's own HTML, its robots.txt and site
 or Google PageSpeed Insights. When a step cannot get real data (for example a page
 blocks the crawler or an API is rate-limited), the report says so instead of guessing.
 
-> **Status:** milestones 1–5 work and are tested. Writing results to Google Sheets
-> (M6), scheduling and logs (M7), Search Console and AI summaries (M8), and the
-> approval-gated fix workflow (M9) are next. See [Roadmap](#roadmap).
+> **Status:** milestones 1–5 work and are tested. The agent runs daily on the VPS,
+> saves every run and finding to n8n Data Tables, and logs failures through an error
+> workflow. Google Sheets export, Search Console, AI summaries and the approval-gated
+> fix workflow (M9) are next. See [Roadmap](#roadmap).
 
 ## What it does
 
@@ -26,7 +27,8 @@ flowchart LR
   F --> G[Extract SEO data<br/>title, meta, canonical, H1-H3,<br/>links, images, word count]
   G --> H[PageSpeed Insights<br/>mobile + desktop]
   H --> I[Findings engine<br/>25+ rules, evidence, priority]
-  I --> J[(Google Sheets — M6)]
+  I --> J[(Data Tables: runs + findings)]
+  I -. errors .-> K[(Error workflow → seo_errors)]
 ```
 
 | Step | What happens | Why it matters |
@@ -104,8 +106,8 @@ docs/INTERVIEW_GUIDE.md           how to explain the project
 | M3 SEO data extraction | ✅ Done |
 | M4 PageSpeed Insights | ✅ Built; needs an API key for live scores |
 | M5 Findings and prioritization | ✅ Done |
-| M6 Google Sheets output | Next |
-| M7 Schedule, run log, error alerts | Planned |
+| M6 Save results (n8n Data Tables: runs, findings) | ✅ Done — Google Sheets mirror next |
+| M7 Daily schedule + error workflow logging to `seo_errors` | ✅ Done — email alerts next |
 | M8 Search Console, sales data, AI summary | Planned |
 | M9 Fix proposals as pull requests, published only after human approval | Planned |
 
