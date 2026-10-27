@@ -1,0 +1,9 @@
+{
+  "name": "n8n-seo-growth-agent",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Reusable n8n SEO audit agent: safe crawling, evidence-based findings, PageSpeed.",
+  "scripts": { "test": "node --test" },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

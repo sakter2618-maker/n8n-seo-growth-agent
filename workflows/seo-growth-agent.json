@@ -1,0 +1,799 @@
+{
+  "name": "SEO Growth Agent",
+  "nodes": [
+    {
+      "id": "80d37e82-c4de-40e6-b978-67c78a3d2a41",
+      "name": "Start (Manual Test)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "1b8cdcdb-b980-4d1e-ba35-960b238aa144",
+      "name": "Agent Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-url",
+              "name": "targetUrl",
+              "value": "={{ $json.targetUrl !== undefined ? $json.targetUrl : \"https://books.toscrape.com/\" }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-allow",
+              "name": "allowedDomains",
+              "value": "books.toscrape.com,quotes.toscrape.com,example.com",
+              "type": "string"
+            },
+            {
+              "id": "cfg-max",
+              "name": "maxPages",
+              "value": 20,
+              "type": "number"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "315c42b1-6980-4b70-ae2d-6aa3d512f993",
+      "name": "Validate URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Milestone 1: check that the URL is safe and authorized before any crawling.\n// The n8n Code sandbox has no built-in URL parser, so we parse with a strict pattern.\n// Every rejection carries a CODE plus a plain-English reason, so logs are easy to read.\nconst results = [];\nfor (const item of $input.all()) {\n  const cfg = item.json;\n  const raw = String(cfg.targetUrl === undefined || cfg.targetUrl === null ? '' : cfg.targetUrl).trim();\n  const allowed = String(cfg.allowedDomains || '')\n    .split(',')\n    .map(s => s.trim().toLowerCase().replace(/^www\\./, ''))\n    .filter(Boolean);\n  const out = {\n    inputUrl: raw,\n    isValid: false,\n    normalizedUrl: '',\n    hostname: '',\n    reason: '',\n    allowedDomains: allowed.join(','),\n    maxPages: cfg.maxPages,\n    checkedAt: new Date().toISOString()\n  };\n  const fail = (r) => { out.reason = r; results.push({ json: out }); };\n\n  if (allowed.length === 0) { fail('NO_ALLOWLIST: Agent Config has no allowed domains, so nothing can be audited'); continue; }\n  if (!raw) { fail('EMPTY_URL: No URL was provided'); continue; }\n  if (raw.length > 2048) { fail('URL_TOO_LONG: URL is longer than 2048 characters'); continue; }\n  if (/\\s/.test(raw)) { fail('INVALID_FORMAT: Web addresses cannot contain spaces'); continue; }\n\n  let candidate = raw;\n  if (!/^[a-z][a-z0-9+.-]*:\\/\\//i.test(candidate)) candidate = 'https://' + candidate;\n\n  const m = candidate.match(/^([a-z][a-z0-9+.-]*):\\/\\/([^\\/?#]*)([^?#]*)(\\?[^#]*)?(#.*)?$/i);\n  if (!m) { fail('INVALID_FORMAT: This is not a valid web address'); continue; }\n  const protocol = m[1].toLowerCase();\n  const authority = m[2];\n  const path = m[3] || '/';\n  const search = m[4] || '';\n\n  if (protocol !== 'http' && protocol !== 'https') { fail('UNSUPPORTED_PROTOCOL: Only http and https are allowed (got ' + protocol + ')'); continue; }\n  if (authority.includes('@')) { fail('CREDENTIALS_IN_URL: URLs with a username or password are not allowed'); continue; }\n  if (authority.startsWith('[')) { fail('IP_ADDRESS_NOT_ALLOWED: Use a domain name, not an IP address'); continue; }\n\n  const hp = authority.match(/^([^:]+)(?::(\\d*))?$/);\n  if (!hp) { fail('INVALID_FORMAT: The address has an invalid host or port'); continue; }\n  const host = hp[1].toLowerCase().replace(/\\.$/, '');\n  const port = hp[2] || '';\n  out.hostname = host;\n\n  if (!/^[a-z0-9.-]+$/.test(host) || host.startsWith('.') || host.includes('..')) { fail('INVALID_FORMAT: The domain name contains characters that are not allowed'); continue; }\n  if (/^\\d+(\\.\\d+){3}$/.test(host)) { fail('IP_ADDRESS_NOT_ALLOWED: Use a domain name, not an IP address'); continue; }\n  if (host === 'localhost' || /\\.(localhost|local|internal|lan|home)$/.test(host) || !host.includes('.')) { fail('PRIVATE_HOST_BLOCKED: Local or internal addresses are blocked to protect your server'); continue; }\n  if (port && port !== '80' && port !== '443') { fail('NON_STANDARD_PORT: Only the normal web ports are allowed (got ' + port + ')'); continue; }\n\n  const bare = host.replace(/^www\\./, '');\n  const isAllowed = allowed.some(d => bare === d || bare.endsWith('.' + d));\n  if (!isAllowed) { fail('NOT_IN_ALLOWLIST: ' + host + ' is not an authorized website (' + allowed.join(', ') + ')'); continue; }\n\n  out.normalizedUrl = protocol + '://' + host + (port ? ':' + port : '') + (path.startsWith('/') ? path : '/' + path) + search;\n  out.isValid = true;\n  out.reason = 'OK';\n  results.push({ json: out });\n}\nreturn results;"
+      }
+    },
+    {
+      "id": "9f2e3d09-05ac-42b1-bbbd-a836690ce371",
+      "name": "Is URL Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isValid }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "7e3a963e-9f72-4470-baa0-ba0bdd57f4f0",
+      "name": "Ready for Crawl",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "st-ok",
+              "name": "status",
+              "value": "READY",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5eb699d1-24b9-4d5d-8b10-7e74e117a210",
+      "name": "Rejected URL (Log)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "st-bad",
+              "name": "status",
+              "value": "REJECTED",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a00011a8-3c85-4178-9544-2095ce313403",
+      "name": "Fetch robots.txt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1440,
+        200
+      ],
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; SEOGrowthAgent/0.1; n8n learning project)"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "url": "={{ $json.normalizedUrl.match(/^https?:\\/\\/[^\\/?#]+/i)[0] + '/robots.txt' }}"
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "executeOnce": true
+    },
+    {
+      "id": "21576a63-48f8-4ce8-a4c4-5b636ade79af",
+      "name": "Parse robots.txt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// Milestone 2a: read robots.txt and decide what we are allowed to crawl.\n// 200 = follow the file. 4xx = no robots.txt, everything allowed.\n// 5xx or network error = we cannot know the rules, so we crawl nothing (safest, same as Google).\nconst cfg = $('Ready for Crawl').first().json;\nconst res = $input.first().json;\nconst UA_TOKEN = 'seogrowthagent';\nconst origin = cfg.normalizedUrl.match(/^https?:\\/\\/[^\\/?#]+/i)[0];\nconst status = Number(res.statusCode || 0);\nconst body = typeof res.data === 'string' ? res.data : '';\n\nlet mode;\nif (res.error || !status) mode = 'UNREACHABLE_BLOCK_ALL';\nelse if (status >= 200 && status < 300) mode = 'PARSED';\nelse if (status >= 400 && status < 500) mode = 'NOT_FOUND_ALLOW_ALL';\nelse mode = 'UNREACHABLE_BLOCK_ALL';\n\nconst groups = [];\nconst sitemaps = [];\nlet current = null;\nlet lastWasAgent = false;\nif (mode === 'PARSED') {\n  for (let line of body.split(/\\r?\\n/)) {\n    line = line.replace(/#.*$/, '').trim();\n    if (!line) continue;\n    const idx = line.indexOf(':');\n    if (idx < 0) continue;\n    const key = line.slice(0, idx).trim().toLowerCase();\n    const val = line.slice(idx + 1).trim();\n    if (key === 'user-agent') {\n      if (!current || !lastWasAgent) { current = { agents: [], rules: [], crawlDelay: null }; groups.push(current); }\n      current.agents.push(val.toLowerCase());\n      lastWasAgent = true;\n      continue;\n    }\n    lastWasAgent = false;\n    if (key === 'sitemap') { sitemaps.push(val); continue; }\n    if (!current) continue;\n    if ((key === 'allow' || key === 'disallow') && val) current.rules.push({ type: key, path: val });\n    else if (key === 'crawl-delay') { const n = parseFloat(val); if (!isNaN(n)) current.crawlDelay = n; }\n  }\n}\nlet chosen = groups.filter(g => g.agents.some(a => a !== '*' && UA_TOKEN.includes(a)));\nconst matchedGroup = chosen.length ? 'specific' : 'wildcard';\nif (!chosen.length) chosen = groups.filter(g => g.agents.includes('*'));\nconst rules = chosen.reduce((acc, g) => acc.concat(g.rules), []);\nconst delays = chosen.map(g => g.crawlDelay).filter(d => d !== null);\nconst crawlDelaySec = delays.length ? delays[0] : null;\nconst delayMs = Math.min(10000, Math.max(1500, Math.round((crawlDelaySec || 0) * 1000)));\n\nfunction toRegex(p) {\n  let r = p.replace(/[.+?^${}()|[\\]\\\\]/g, '\\\\$&').replace(/\\*/g, '.*');\n  if (r.endsWith('\\\\$')) r = r.slice(0, -2) + '$';\n  return new RegExp('^' + r);\n}\nfunction isAllowed(pathWithQuery) {\n  if (mode === 'UNREACHABLE_BLOCK_ALL') return false;\n  let best = null;\n  for (const r of rules) {\n    if (toRegex(r.path).test(pathWithQuery)) {\n      if (!best || r.path.length > best.path.length || (r.path.length === best.path.length && r.type === 'allow')) best = r;\n    }\n  }\n  return !best || best.type === 'allow';\n}\nconst startPath = cfg.normalizedUrl.slice(origin.length) || '/';\nreturn [{ json: {\n  runId: 'run_' + $execution.id,\n  targetUrl: cfg.normalizedUrl,\n  hostname: cfg.hostname,\n  origin,\n  maxPages: Number(cfg.maxPages) || 20,\n  robotsUrl: origin + '/robots.txt',\n  robotsStatusCode: status,\n  robotsMode: mode,\n  robotsGroupUsed: groups.length ? matchedGroup : 'none',\n  robotsRules: rules,\n  sitemaps,\n  crawlDelaySec,\n  delayMs,\n  startAllowed: isAllowed(startPath),\n  startPath\n} }];",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "d8fe8b7d-a92a-4701-8c8b-924281cd00af",
+      "name": "Robots Allows Start Page?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.startAllowed }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          }
+        }
+      }
+    },
+    {
+      "id": "b08e031f-261c-41c5-bbd3-83f2b7448697",
+      "name": "Blocked by robots.txt (Log)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        340
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "st-robots",
+              "name": "status",
+              "type": "string",
+              "value": "BLOCKED_BY_ROBOTS"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "mode": "manual"
+      }
+    },
+    {
+      "id": "d7d4e07c-df90-4f0d-b113-5f90e5472d60",
+      "name": "Fetch Start Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2160,
+        100
+      ],
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; SEOGrowthAgent/0.1; n8n learning project)"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 20000
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "url": "={{ $('Parse robots.txt').first().json.targetUrl }}"
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "executeOnce": true
+    },
+    {
+      "id": "fc9ac9a3-79c2-462c-ad78-419bb25e1d0b",
+      "name": "Plan Crawl List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Milestone 2.1b: choose which pages to audit (at most maxPages).\n// 1. The start page is always first.\n// 2. Pages from the sitemap, spread across site sections (products, categories, blog...) so a\n//    20-page sample covers the whole site instead of only the first 20 sitemap entries.\n// 3. If there is room left (or no sitemap), links found on the start page.\n// Every candidate must be on the same site, look like an HTML page, and be allowed by robots.txt.\nfunction planCrawl(ctx, startRes, sitemapFiles, targets) {\n  const host = ctx.hostname.replace(/^www\\./, '');\n  const maxPages = ctx.maxPages;\n  const rules = ctx.robotsRules || [];\n  const toRegex = p => {\n    let r = p.replace(/[.+?^${}()|[\\]\\\\]/g, '\\\\$&').replace(/\\*/g, '.*');\n    if (r.endsWith('\\\\$')) r = r.slice(0, -2) + '$';\n    return new RegExp('^' + r);\n  };\n  const isAllowed = pathQ => {\n    if (ctx.robotsMode === 'UNREACHABLE_BLOCK_ALL') return false;\n    let best = null;\n    for (const r of rules) if (toRegex(r.path).test(pathQ)) {\n      if (!best || r.path.length > best.path.length || (r.path.length === best.path.length && r.type === 'allow')) best = r;\n    }\n    return !best || best.type === 'allow';\n  };\n  const resolve = (href, base) => {\n    href = String(href || '').trim().replace(/&amp;/g, '&');\n    if (!href || href.startsWith('#')) return null;\n    if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !/^https?:/i.test(href)) return null;\n    href = href.split('#')[0];\n    if (!href) return null;\n    let abs;\n    if (/^https?:\\/\\//i.test(href)) abs = href;\n    else if (href.startsWith('//')) abs = base.split('//')[0] + href;\n    else {\n      const bm = base.match(/^(https?:\\/\\/[^\\/?#]+)([^?#]*)/i);\n      const bPath = bm[2] || '/';\n      abs = bm[1] + (href.startsWith('/') ? href : href.startsWith('?') ? bPath + href : bPath.replace(/[^\\/]*$/, '') + href);\n    }\n    const m = abs.match(/^(https?:\\/\\/[^\\/?#]+)([^?#]*)(\\?[^#]*)?/i);\n    if (!m) return null;\n    const segs = [];\n    for (const s of (m[2] || '/').split('/')) { if (s === '..') { if (segs.length > 1) segs.pop(); } else if (s !== '.') segs.push(s); }\n    let p = segs.join('/'); if (!p.startsWith('/')) p = '/' + p;\n    return m[1].toLowerCase() + p + (m[3] || '');\n  };\n  const stats = { startPageStatus: Number(startRes.statusCode || 0), sitemapSource: '', sitemapFilesRead: 0, sitemapUrlsFound: 0,\n    fromSitemap: 0, fromLinks: 0, linksFound: 0, offSite: 0, nonHtml: 0, duplicates: 0, blockedByRobots: 0, overPageLimit: 0 };\n  const t0 = targets[0] || {};\n  stats.sitemapSource = t0.rootSitemapType === 'index' ? 'index' : (t0.rootSitemapDeclared ? 'robots.txt' : '/sitemap.xml');\n  stats.rootSitemapUrl = t0.rootSitemapUrl || '';\n  stats.rootSitemapStatus = t0.rootSitemapStatus || 0;\n\n  const startUrl = resolve(ctx.targetUrl, ctx.targetUrl);\n  const seen = new Set([startUrl]);\n  const planned = [{ url: startUrl, source: 'start' }];\n  function accept(u) {\n    if (!u) return null;\n    const h = u.replace(/^https?:\\/\\//i, '').split(/[\\/?#:]/)[0].replace(/^www\\./, '');\n    if (h !== host) { stats.offSite++; return null; }\n    if (/\\.(jpe?g|png|gif|svg|webp|avif|ico|pdf|zip|css|js|xml|txt|json|mp4|mp3|woff2?)(\\?|$)/i.test(u)) { stats.nonHtml++; return null; }\n    if (seen.has(u)) { stats.duplicates++; return null; }\n    seen.add(u);\n    const pathQ = u.replace(/^https?:\\/\\/[^\\/]+/i, '') || '/';\n    if (!isAllowed(pathQ)) { stats.blockedByRobots++; return null; }\n    return u;\n  }\n\n  // Sitemap URLs, grouped by first path segment, then taken round-robin.\n  const groups = new Map();\n  for (const f of sitemapFiles) {\n    const st = Number(f.statusCode || 0);\n    const body = typeof f.data === 'string' ? f.data : (typeof f.body === 'string' ? f.body : '');\n    if (st < 200 || st >= 300 || !/<urlset[\\s>]/i.test(body)) continue;\n    stats.sitemapFilesRead++;\n    for (const m of body.matchAll(/<url>[\\s\\S]*?<loc>([^<]+)<\\/loc>/gi)) {\n      stats.sitemapUrlsFound++;\n      const u = accept(resolve(m[1], ctx.targetUrl));\n      if (!u) continue;\n      const seg = (u.replace(/^https?:\\/\\/[^\\/]+/i, '').split('/')[1] || '(root)');\n      if (!groups.has(seg)) groups.set(seg, []);\n      groups.get(seg).push(u);\n    }\n  }\n  const queues = [...groups.values()];\n  let added = true;\n  while (planned.length < maxPages && added) {\n    added = false;\n    for (const q of queues) { if (planned.length >= maxPages) break; const u = q.shift(); if (u) { planned.push({ url: u, source: 'sitemap' }); stats.fromSitemap++; added = true; } }\n  }\n  stats.overPageLimit += queues.reduce((s, q) => s + q.length, 0);\n\n  // Links on the start page fill any remaining room.\n  const html = typeof startRes.data === 'string' ? startRes.data : '';\n  for (const m of html.matchAll(/<a\\b[^>]*?\\bhref\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))/gi)) {\n    stats.linksFound++;\n    const u = accept(resolve(m[1] || m[2] || m[3] || '', startUrl));\n    if (!u) continue;\n    if (planned.length < maxPages) { planned.push({ url: u, source: 'link' }); stats.fromLinks++; } else stats.overPageLimit++;\n  }\n  return planned.map((p, i) => ({ runId: ctx.runId, url: p.url, discoveredVia: p.source, crawlOrder: i + 1, plannedPages: planned.length, delayMs: ctx.delayMs, discovery: stats }));\n}\n\nconst ctx = $('Parse robots.txt').first().json;\nconst files = $('Fetch Sitemap Files').all().map(i => i.json);\nconst targets = $('Sitemap Targets').all().map(i => i.json);\nreturn planCrawl(ctx, $input.first().json, files, targets).map(j => ({ json: j }));\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "45bbd06e-6e89-4226-a0f7-c95271ea673b",
+      "name": "Fetch Pages (throttled)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2640,
+        100
+      ],
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; SEOGrowthAgent/0.1; n8n learning project)"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchInterval": "={{ $('Parse robots.txt').first().json.delayMs }}",
+              "batchSize": 1
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 20000
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "url": "={{ $json.url }}"
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "1d82ae43-c573-4c1a-a7a4-450dd9f85c5c",
+      "name": "Collect Page Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Milestone 2c: one clean record per page. The raw HTML is kept for Milestone 3 (extraction)\n// but will NOT be written to Google Sheets.\nconst ctx = $('Parse robots.txt').first().json;\nconst plan = $('Plan Crawl List').all();\nconst collectedAt = new Date().toISOString();\nreturn $input.all().map((it, i) => {\n  const p = plan[i] ? plan[i].json : {};\n  const r = it.json;\n  const headers = r.headers || {};\n  const ct = String(headers['content-type'] || '');\n  const html = typeof r.data === 'string' ? r.data : '';\n  const status = Number(r.statusCode || 0);\n  const err = r.error ? String(r.error.message || r.error) : '';\n  return { json: {\n    runId: ctx.runId,\n    auditTarget: ctx.targetUrl,\n    url: p.url || '',\n    crawlOrder: p.crawlOrder || i + 1,\n    fetchStatus: err ? 'NETWORK_ERROR' : (status >= 200 && status < 300 ? 'OK' : 'HTTP_' + status),\n    statusCode: status,\n    contentType: ct,\n    isHtml: /text\\/html/i.test(ct),\n    htmlBytes: html.length,\n    serverDate: String(headers['date'] || ''),\n    lastModified: String(headers['last-modified'] || ''),\n    fetchError: err,\n    collectedAt,\n    html\n  } };\n});",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "befe5784-7921-4f98-9ae5-200e33c963d3",
+      "name": "Extract SEO Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Milestone 3: extract SEO data from each collected page.\n// Pure text parsing (no browser), so it sees exactly what a search engine's first fetch sees.\n// The raw HTML is dropped at the end so it never reaches Google Sheets.\n\nfunction decode(s) {\n  return String(s || '')\n    .replace(/&#(\\d+);/g, (_, n) => String.fromCharCode(Number(n)))\n    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))\n    .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '\"').replace(/&#39;|&apos;/g, \"'\")\n    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');\n}\nfunction clean(s) { return decode(String(s || '').replace(/<[^>]*>/g, ' ')).replace(/\\s+/g, ' ').trim(); }\nfunction attr(tag, name) {\n  const m = tag.match(new RegExp('\\\\s' + name + '\\\\s*=\\\\s*(?:\"([^\"]*)\"|\\'([^\\']*)\\'|([^\\\\s>]+))', 'i'));\n  return m ? decode(m[1] !== undefined ? m[1] : (m[2] !== undefined ? m[2] : m[3])) : null;\n}\nfunction tags(html, name) { return html.match(new RegExp('<' + name + '\\\\b[^>]*>', 'gi')) || []; }\nfunction blocks(html, name) {\n  const out = []; const re = new RegExp('<' + name + '\\\\b[^>]*>([\\\\s\\\\S]*?)</' + name + '\\\\s*>', 'gi'); let m;\n  while ((m = re.exec(html)) !== null) out.push(clean(m[1]));\n  return out;\n}\nfunction resolve(href, base) {\n  href = String(href || '').trim();\n  if (!href || href.startsWith('#')) return null;\n  if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !/^https?:/i.test(href)) return null;\n  href = href.split('#')[0];\n  if (!href) return null;\n  let abs;\n  if (/^https?:\\/\\//i.test(href)) abs = href;\n  else if (href.startsWith('//')) abs = base.split('//')[0] + href;\n  else {\n    const bm = base.match(/^(https?:\\/\\/[^\\/?#]+)([^?#]*)/i);\n    const bPath = bm[2] || '/';\n    let path;\n    if (href.startsWith('/')) path = href;\n    else if (href.startsWith('?')) path = bPath + href;\n    else path = bPath.replace(/[^\\/]*$/, '') + href;\n    abs = bm[1] + path;\n  }\n  const m = abs.match(/^(https?:\\/\\/[^\\/?#]+)([^?#]*)(\\?[^#]*)?/i);\n  if (!m) return null;\n  const segs = [];\n  for (const s of (m[2] || '/').split('/')) {\n    if (s === '..') { if (segs.length > 1) segs.pop(); }\n    else if (s !== '.') segs.push(s);\n  }\n  let p = segs.join('/');\n  if (!p.startsWith('/')) p = '/' + p;\n  return m[1].toLowerCase() + p + (m[3] || '');\n}\nfunction hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(16); }\nfunction metaByName(metas, key, val) {\n  for (const t of metas) { const v = attr(t, key); if (v && v.toLowerCase() === val) return attr(t, 'content'); }\n  return null;\n}\n\nfunction extractPage(p) {\n  const base = {\n    runId: p.runId, auditTarget: p.auditTarget, url: p.url, crawlOrder: p.crawlOrder,\n    fetchStatus: p.fetchStatus, statusCode: p.statusCode, contentType: p.contentType, htmlBytes: p.htmlBytes\n  };\n  if (p.fetchStatus !== 'OK' || !p.isHtml || !p.html) {\n    return Object.assign(base, { extractionStatus: p.fetchStatus !== 'OK' ? 'SKIPPED_FETCH_FAILED' : 'SKIPPED_NOT_HTML' });\n  }\n  const raw = p.html;\n  // Remove comments, scripts, styles, templates, noscript before reading content.\n  const html = raw.replace(/<!--[\\s\\S]*?-->/g, '');\n  const headM = html.match(/<head\\b[^>]*>([\\s\\S]*?)<\\/head\\s*>/i);\n  const head = headM ? headM[1] : html;\n  const body = html.replace(/<(script|style|template|noscript|svg)\\b[\\s\\S]*?<\\/\\1\\s*>/gi, ' ');\n\n  const titles = blocks(head, 'title');\n  const title = titles[0] || '';\n  const metas = tags(head, 'meta');\n  // Trim: a description of only spaces/newlines is treated as empty (it shows nothing in Google).\n  const mdRaw = metaByName(metas, 'name', 'description');\n  const metaDescription = mdRaw === null ? null : mdRaw.replace(/\\s+/g, ' ').trim();\n  const metaRobots = metaByName(metas, 'name', 'robots');\n  const viewport = metaByName(metas, 'name', 'viewport');\n  const ogTitle = metaByName(metas, 'property', 'og:title');\n  const ogDescription = metaByName(metas, 'property', 'og:description');\n  const ogImage = metaByName(metas, 'property', 'og:image');\n  const descCount = metas.filter(t => (attr(t, 'name') || '').toLowerCase() === 'description').length;\n\n  const linkTags = tags(head, 'link');\n  const canonTags = linkTags.filter(t => (attr(t, 'rel') || '').toLowerCase().split(/\\s+/).includes('canonical'));\n  const canonicalRaw = canonTags.length ? (attr(canonTags[0], 'href') || '') : '';\n  const canonicalUrl = canonicalRaw ? (resolve(canonicalRaw, p.url) || '') : '';\n  const hreflangCount = linkTags.filter(t => attr(t, 'hreflang')).length;\n  const htmlTag = (html.match(/<html\\b[^>]*>/i) || [''])[0];\n  const lang = attr(htmlTag, 'lang') || '';\n\n  const h1 = blocks(body, 'h1'), h2 = blocks(body, 'h2'), h3 = blocks(body, 'h3');\n\n  const origin = p.url.match(/^https?:\\/\\/[^\\/?#]+/i)[0].toLowerCase();\n  const host = origin.replace(/^https?:\\/\\//, '').replace(/^www\\./, '');\n  let internal = 0, external = 0, nofollow = 0, emptyAnchor = 0, otherScheme = 0;\n  const internalSet = new Set(), externalSet = new Set();\n  const aRe = /<a\\b([^>]*)>([\\s\\S]*?)<\\/a\\s*>/gi; let am;\n  while ((am = aRe.exec(body)) !== null) {\n    const t = '<a ' + am[1] + '>';\n    const href = attr(t, 'href');\n    if (href === null) continue;\n    const rel = (attr(t, 'rel') || '').toLowerCase();\n    if (/\\bnofollow\\b/.test(rel)) nofollow++;\n    const text = clean(am[2]);\n    const hasImgAlt = /<img\\b[^>]*\\salt\\s*=\\s*[\"'][^\"']+[\"']/i.test(am[2]);\n    if (!text && !hasImgAlt && !attr(t, 'aria-label') && !attr(t, 'title')) emptyAnchor++;\n    const abs = resolve(href, p.url);\n    if (!abs) { if (!href.trim().startsWith('#')) otherScheme++; continue; }\n    const h = abs.replace(/^https?:\\/\\//i, '').split(/[\\/?#]/)[0].replace(/^www\\./, '');\n    if (h === host) { internal++; internalSet.add(abs); } else { external++; externalSet.add(abs); }\n  }\n\n  const imgs = tags(body, 'img');\n  const imgNoAlt = imgs.filter(t => attr(t, 'alt') === null).length;\n  const imgEmptyAlt = imgs.filter(t => { const a = attr(t, 'alt'); return a !== null && !a.trim(); }).length;\n\n  const text = clean(body.replace(/<head\\b[\\s\\S]*?<\\/head\\s*>/i, ' '));\n  const words = text ? text.split(' ').filter(w => /[\\p{L}\\p{N}]/u.test(w)).length : 0;\n  const scriptCount = (raw.match(/<script\\b/gi) || []).length;\n  const jsShell = /<div[^>]+id\\s*=\\s*[\"'](root|app|__next|__nuxt)[\"'][^>]*>\\s*<\\/div>/i.test(raw);\n  const jsRenderedSuspected = words < 50 && (scriptCount >= 3 || jsShell);\n\n  return Object.assign(base, {\n    extractionStatus: 'OK',\n    title, titleLength: title.length, titleTagCount: titles.length,\n    metaDescription: metaDescription === null ? '' : metaDescription,\n    metaDescriptionPresent: metaDescription !== null,\n    metaDescriptionLength: metaDescription === null ? 0 : metaDescription.length,\n    metaDescriptionTagCount: descCount,\n    metaRobots: metaRobots || '',\n    isNoindex: /\\bnoindex\\b/i.test(metaRobots || ''),\n    canonicalRaw, canonicalUrl, canonicalTagCount: canonTags.length,\n    canonicalIsSelf: canonicalUrl ? canonicalUrl === p.url : null,\n    lang, viewportPresent: viewport !== null, hreflangCount,\n    ogTitlePresent: ogTitle !== null, ogDescriptionPresent: ogDescription !== null, ogImagePresent: ogImage !== null,\n    h1Count: h1.length, h1: h1.slice(0, 5), h2Count: h2.length, h2: h2.slice(0, 10), h3Count: h3.length, h3: h3.slice(0, 10),\n    internalLinks: internal, uniqueInternalLinks: internalSet.size,\n    externalLinks: external, uniqueExternalLinks: externalSet.size,\n    nofollowLinks: nofollow, emptyAnchorLinks: emptyAnchor, nonHttpLinks: otherScheme,\n    imageCount: imgs.length, imagesMissingAlt: imgNoAlt, imagesEmptyAlt: imgEmptyAlt,\n    wordCount: words, scriptCount, jsRenderedSuspected,\n    contentHash: hash(text)\n  });\n}\n\nreturn $input.all().map(it => ({ json: extractPage(it.json) }));\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "f7e2218c-1998-408b-832f-2c91212e0d0c",
+      "name": "Build PageSpeed Requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Milestone 4a: one PageSpeed test for mobile and one for desktop, on the audited start URL.\nconst ctx = $('Parse robots.txt').first().json;\nreturn ['mobile', 'desktop'].map(strategy => ({ json: { runId: ctx.runId, url: ctx.targetUrl, strategy } }));",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "3ffc471d-aef3-4652-94a0-cb730765f6cb",
+      "name": "PageSpeed API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3600,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchInterval": 2000,
+              "batchSize": 1
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 120000
+        },
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "strategy",
+              "value": "={{ $json.strategy }}"
+            },
+            {
+              "name": "category",
+              "value": "performance"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "url": "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "1f3a67d1-3752-4faa-b5e8-0979288751d9",
+      "name": "PageSpeed Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Milestone 4: read Google PageSpeed Insights results (mobile + desktop).\n// Lab data = one Lighthouse test run by Google now (varies a little run to run).\n// Field data = real Chrome users over the last 28 days (only exists for sites with enough traffic).\n// If the API fails or is rate-limited, we record that status instead of inventing numbers.\n\nfunction fmtMs(v) { if (v === null || v === undefined) return ''; return v >= 1000 ? (Math.round(v / 100) / 10) + ' s' : Math.round(v) + ' ms'; }\nfunction parsePsi(req, res) {\n  const out = {\n    runId: req.runId, url: req.url, strategy: req.strategy,\n    reportUrl: 'https://pagespeed.web.dev/analysis?url=' + encodeURIComponent(req.url) + '&form_factor=' + req.strategy,\n    psiStatus: '', psiError: '', performanceScore: null,\n    fcpLab: '', lcpLab: '', tbtLab: '', clsLab: '', speedIndexLab: '',\n    lcpLabMs: null, tbtLabMs: null, clsLabValue: null,\n    fieldDataSource: 'none', lcpField: '', inpField: '', clsField: '', fieldCwvAssessment: 'NO_FIELD_DATA',\n    topOpportunities: '', lighthouseVersion: '', testedAt: ''\n  };\n  const status = Number(res.statusCode || 0);\n  const body = res.body !== undefined ? res.body : res.data;\n  let j = body;\n  if (typeof j === 'string') { try { j = JSON.parse(j); } catch (e) { j = null; } }\n  if (res.error && !status) { out.psiStatus = 'NETWORK_ERROR'; out.psiError = String(res.error.message || res.error).slice(0, 300); return out; }\n  if (status === 429) { out.psiStatus = 'RATE_LIMITED'; out.psiError = 'Google limited requests without an API key. Add a free API key to fix this.'; return out; }\n  if (status < 200 || status >= 300 || !j || !j.lighthouseResult) {\n    out.psiStatus = 'API_ERROR_' + (status || 'UNKNOWN');\n    out.psiError = String((j && j.error && j.error.message) || 'No Lighthouse result returned').slice(0, 300);\n    return out;\n  }\n  const lh = j.lighthouseResult;\n  const a = lh.audits || {};\n  const perf = lh.categories && lh.categories.performance ? lh.categories.performance.score : null;\n  out.psiStatus = perf === null || perf === undefined ? 'NO_SCORE' : 'OK';\n  out.performanceScore = perf === null || perf === undefined ? null : Math.round(perf * 100);\n  const nv = k => (a[k] && typeof a[k].numericValue === 'number') ? a[k].numericValue : null;\n  out.lcpLabMs = nv('largest-contentful-paint'); out.tbtLabMs = nv('total-blocking-time'); out.clsLabValue = nv('cumulative-layout-shift');\n  out.fcpLab = fmtMs(nv('first-contentful-paint')); out.lcpLab = fmtMs(out.lcpLabMs); out.tbtLab = fmtMs(out.tbtLabMs);\n  out.speedIndexLab = fmtMs(nv('speed-index'));\n  out.clsLab = out.clsLabValue === null ? '' : String(Math.round(out.clsLabValue * 1000) / 1000);\n  out.lighthouseVersion = lh.lighthouseVersion || '';\n  out.testedAt = lh.fetchTime || j.analysisUTCTimestamp || '';\n\n  // Field data: prefer this exact URL, fall back to whole-site (origin) data, and say which one we used.\n  let le = j.loadingExperience, src = 'url';\n  if (!le || !le.metrics || le.origin_fallback) { le = j.originLoadingExperience; src = 'origin'; }\n  if (le && le.metrics && Object.keys(le.metrics).length) {\n    const m = le.metrics;\n    const p = k => (m[k] && typeof m[k].percentile === 'number') ? m[k].percentile : null;\n    const lcp = p('LARGEST_CONTENTFUL_PAINT_MS'), inp = p('INTERACTION_TO_NEXT_PAINT'), clsRaw = p('CUMULATIVE_LAYOUT_SHIFT_SCORE');\n    const cls = clsRaw === null ? null : clsRaw / 100;\n    out.fieldDataSource = src;\n    out.lcpField = fmtMs(lcp); out.inpField = fmtMs(inp); out.clsField = cls === null ? '' : String(cls);\n    // Google's \"good\" thresholds at the 75th percentile: LCP <= 2.5 s, INP <= 200 ms, CLS <= 0.1.\n    const checks = [lcp === null ? null : lcp <= 2500, inp === null ? null : inp <= 200, cls === null ? null : cls <= 0.1];\n    if (checks.some(c => c === false)) out.fieldCwvAssessment = 'FAILED';\n    else if (checks.every(c => c === true)) out.fieldCwvAssessment = 'PASSED';\n    else out.fieldCwvAssessment = 'INCOMPLETE';\n  }\n\n  // Top 3 improvement ideas from Lighthouse, ranked by estimated time saved.\n  const opps = Object.values(a).filter(x => x && typeof x.score === 'number' && x.score < 0.9).map(x => {\n    let save = (x.details && typeof x.details.overallSavingsMs === 'number') ? x.details.overallSavingsMs : 0;\n    if (!save && x.metricSavings) save = Math.max(0, ...Object.values(x.metricSavings).filter(v => typeof v === 'number' && v > 1));\n    return { title: x.title, save };\n  }).filter(o => o.save > 0).sort((x, y) => y.save - x.save).slice(0, 3);\n  out.topOpportunities = opps.map(o => o.title + ' (~' + fmtMs(o.save) + ')').join('; ');\n  return out;\n}\n\nconst reqs = $('Build PageSpeed Requests').all();\nreturn $input.all().map((it, i) => ({ json: parsePsi(reqs[i] ? reqs[i].json : {}, it.json) }));\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "7e927fa8-02f8-41d5-b879-2a3f6ffe6cdf",
+      "name": "Generate Findings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4080,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Milestone 5: turn extracted page data into evidence-based findings.\n// Rules are fixed and transparent: every finding lists the exact pages and values that triggered it.\n// No AI and no guessing here. One finding per rule, with all affected pages.\n\nfunction buildFindings(pages, ctx, psi, disc) {\n  const okAll = pages.filter(p => p.extractionStatus === 'OK');\n  // Pages that look JavaScript-rendered get ONE finding (JS_RENDERED_SUSPECTED) and are left out of\n  // content checks, so we never report \"missing title/H1\" when the content simply loads later.\n  const ok = okAll.filter(p => !p.jsRenderedSuspected);\n  const audited = pages.length;\n  const findings = [];\n  const SEV = { High: 3, Medium: 2, Low: 1, Info: 0 };\n  const MAX_EXAMPLES = 10;\n\n  function add(id, category, severity, title, affected, evidenceFn, recommendation, reference) {\n    if (!affected.length) return;\n    const examples = affected.slice(0, MAX_EXAMPLES).map(evidenceFn);\n    findings.push({\n      findingId: id, category, severity, title,\n      affectedPages: affected.length,\n      pagesAudited: audited,\n      affectedShare: audited ? Math.round((affected.length / audited) * 100) / 100 : 0,\n      evidence: examples.join(' | ') + (affected.length > MAX_EXAMPLES ? ' | …and ' + (affected.length - MAX_EXAMPLES) + ' more' : ''),\n      affectedUrls: affected.map(p => p.url || p).slice(0, 50),\n      recommendation, reference\n    });\n  }\n  const path = u => String(u || '').replace(/^https?:\\/\\/[^\\/]+/i, '') || '/';\n  const groupBy = (arr, key) => {\n    const m = {};\n    for (const p of arr) { const k = key(p); if (k === null || k === undefined || k === '') continue; (m[k] = m[k] || []).push(p); }\n    return Object.values(m).filter(g => g.length > 1);\n  };\n\n  // ---- Crawl / indexability ----\n  add('FETCH_FAILED', 'Crawlability', 'High', 'Pages could not be loaded',\n    pages.filter(p => p.fetchStatus !== 'OK'), p => path(p.url) + ' → ' + p.fetchStatus,\n    'Fix or redirect broken URLs and update internal links that point to them.',\n    'https://developers.google.com/search/docs/crawling-indexing/http-network-errors');\n  add('JS_RENDERED_SUSPECTED', 'Data confidence', 'High', 'Page content may be loaded by JavaScript (audit data may be incomplete)',\n    okAll.filter(p => p.jsRenderedSuspected), p => path(p.url) + ' → ' + p.wordCount + ' words, ' + p.scriptCount + ' scripts',\n    'Confirm with Google Search Console URL Inspection. Consider server-side rendering so content is in the initial HTML.',\n    'https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics');\n  add('NOINDEX', 'Indexability', 'High', 'Pages tell search engines not to index them',\n    ok.filter(p => p.isNoindex), p => path(p.url) + ' → meta robots \"' + p.metaRobots + '\"',\n    'If these pages should appear in Google, remove \"noindex\". If intentional, no action needed.',\n    'https://developers.google.com/search/docs/crawling-indexing/block-indexing');\n  add('MISSING_VIEWPORT', 'Mobile', 'High', 'No mobile viewport tag',\n    ok.filter(p => !p.viewportPresent), p => path(p.url),\n    'Add <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"> to the page head.',\n    'https://developers.google.com/search/docs/crawling-indexing/mobile/mobile-sites-mobile-first-indexing');\n\n  // ---- Titles ----\n  add('MISSING_TITLE', 'Titles', 'High', 'Pages have no title',\n    ok.filter(p => !p.title), p => path(p.url),\n    'Write a unique, descriptive <title> for each page.',\n    'https://developers.google.com/search/docs/appearance/title-link');\n  add('MULTIPLE_TITLE_TAGS', 'Titles', 'Medium', 'Pages have more than one <title> tag',\n    ok.filter(p => p.titleTagCount > 1), p => path(p.url) + ' → ' + p.titleTagCount + ' title tags',\n    'Keep exactly one <title> tag in the head.',\n    'https://developers.google.com/search/docs/appearance/title-link');\n  const dupTitles = groupBy(ok, p => p.title ? p.title.toLowerCase() : null);\n  add('DUPLICATE_TITLE', 'Titles', 'Medium', 'Different pages share the same title',\n    dupTitles.flat(), p => path(p.url) + ' → \"' + p.title + '\"',\n    'Give every page its own title that describes that page specifically.',\n    'https://developers.google.com/search/docs/appearance/title-link');\n  add('TITLE_TOO_LONG', 'Titles', 'Low', 'Titles longer than 60 characters (may be cut off in results)',\n    ok.filter(p => p.titleLength > 60), p => path(p.url) + ' → ' + p.titleLength + ' chars',\n    'Shorten to roughly 50–60 characters with the most important words first. (60 is an industry guideline, not a Google rule.)',\n    'https://developers.google.com/search/docs/appearance/title-link');\n  add('TITLE_TOO_SHORT', 'Titles', 'Low', 'Titles shorter than 20 characters',\n    ok.filter(p => p.title && p.titleLength < 20), p => path(p.url) + ' → \"' + p.title + '\" (' + p.titleLength + ' chars)',\n    'Expand the title so it describes the page and its main keyword.',\n    'https://developers.google.com/search/docs/appearance/title-link');\n\n  // ---- Meta descriptions ----\n  add('MISSING_META_DESCRIPTION', 'Meta description', 'Medium', 'Meta description missing or empty',\n    ok.filter(p => p.metaDescriptionLength === 0),\n    p => path(p.url) + (p.metaDescriptionPresent ? ' → tag present but empty' : ' → no tag'),\n    'Write a unique 1–2 sentence summary (about 70–160 characters) for each page. Google may use it as the search snippet.',\n    'https://developers.google.com/search/docs/appearance/snippet');\n  const dupDesc = groupBy(ok, p => p.metaDescriptionLength ? p.metaDescription.toLowerCase() : null);\n  add('DUPLICATE_META_DESCRIPTION', 'Meta description', 'Low', 'Different pages share the same meta description',\n    dupDesc.flat(), p => path(p.url),\n    'Make each description specific to its page.',\n    'https://developers.google.com/search/docs/appearance/snippet');\n  add('META_DESCRIPTION_TOO_LONG', 'Meta description', 'Low', 'Meta descriptions longer than 160 characters',\n    ok.filter(p => p.metaDescriptionLength > 160), p => path(p.url) + ' → ' + p.metaDescriptionLength + ' chars',\n    'Trim to about 160 characters. (Industry guideline; Google truncates by pixel width.)',\n    'https://developers.google.com/search/docs/appearance/snippet');\n  add('MULTIPLE_META_DESCRIPTIONS', 'Meta description', 'Low', 'Pages have more than one meta description tag',\n    ok.filter(p => p.metaDescriptionTagCount > 1), p => path(p.url) + ' → ' + p.metaDescriptionTagCount + ' tags',\n    'Keep exactly one meta description tag.',\n    'https://developers.google.com/search/docs/appearance/snippet');\n\n  // ---- Headings ----\n  add('MISSING_H1', 'Headings', 'Medium', 'Pages have no H1 heading',\n    ok.filter(p => p.h1Count === 0), p => path(p.url),\n    'Add one clear H1 that states the page topic.',\n    'https://developers.google.com/search/docs/fundamentals/seo-starter-guide');\n  add('MULTIPLE_H1', 'Headings', 'Low', 'Pages have more than one H1',\n    ok.filter(p => p.h1Count > 1), p => path(p.url) + ' → ' + p.h1Count + ' H1s',\n    'Usually one H1 per page is clearest. Multiple H1s are not an error for Google, so treat this as a tidy-up.',\n    'https://developers.google.com/search/docs/fundamentals/seo-starter-guide');\n  add('NO_H2_STRUCTURE', 'Headings', 'Low', 'Pages use no H2 subheadings',\n    ok.filter(p => p.h2Count === 0 && p.wordCount >= 150), p => path(p.url) + ' → 0 H2, ' + p.h3Count + ' H3, ' + p.wordCount + ' words',\n    'Use H2s for main sections so the page structure is clear to readers and search engines.',\n    'https://developers.google.com/search/docs/fundamentals/seo-starter-guide');\n\n  // ---- Canonical / duplicates ----\n  add('MULTIPLE_CANONICALS', 'Canonical', 'High', 'Pages declare more than one canonical URL',\n    ok.filter(p => p.canonicalTagCount > 1), p => path(p.url) + ' → ' + p.canonicalTagCount + ' canonical tags',\n    'Keep exactly one rel=\"canonical\". With conflicting canonicals Google may ignore them all.',\n    'https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls');\n  const dupContent = groupBy(ok, p => p.wordCount >= 20 ? p.contentHash : null);\n  add('DUPLICATE_CONTENT', 'Canonical', 'High', 'Different URLs serve identical content',\n    dupContent.flat(), p => path(p.url) + ' (canonical: ' + (p.canonicalUrl ? path(p.canonicalUrl) : 'none') + ')',\n    'Pick one preferred URL. 301-redirect the others to it, or add rel=\"canonical\" pointing to it.',\n    'https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls');\n  add('MISSING_CANONICAL', 'Canonical', 'Medium', 'Pages have no canonical tag',\n    ok.filter(p => p.canonicalTagCount === 0), p => path(p.url),\n    'Add a self-referencing rel=\"canonical\" on each indexable page.',\n    'https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls');\n  add('CANONICAL_POINTS_ELSEWHERE', 'Canonical', 'Info', 'Canonical points to a different URL',\n    ok.filter(p => p.canonicalIsSelf === false && p.canonicalTagCount === 1), p => path(p.url) + ' → ' + p.canonicalUrl,\n    'Check this is intended. These pages will usually not be shown in Google themselves.',\n    'https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls');\n\n  // ---- Images / links / content ----\n  const altPages = ok.filter(p => p.imagesMissingAlt > 0);\n  add('IMAGES_MISSING_ALT', 'Images', 'Medium', 'Images without alt text',\n    altPages, p => path(p.url) + ' → ' + p.imagesMissingAlt + ' of ' + p.imageCount + ' images',\n    'Add short descriptive alt text to meaningful images (alt=\"\" is fine for purely decorative ones).',\n    'https://developers.google.com/search/docs/appearance/google-images');\n  add('EMPTY_ANCHOR_LINKS', 'Links', 'Low', 'Links with no text',\n    ok.filter(p => p.emptyAnchorLinks > 0), p => path(p.url) + ' → ' + p.emptyAnchorLinks + ' links',\n    'Give each link visible text (or aria-label / image alt) that says where it goes.',\n    'https://developers.google.com/search/docs/crawling-indexing/links-crawlable');\n  add('THIN_CONTENT', 'Content', 'Low', 'Pages with very little text (under 100 words)',\n    ok.filter(p => !p.jsRenderedSuspected && p.wordCount < 100), p => path(p.url) + ' → ' + p.wordCount + ' words',\n    'Add helpful, original content, or consider whether the page needs to be indexed.',\n    'https://developers.google.com/search/docs/fundamentals/creating-helpful-content');\n  add('MISSING_LANG', 'International', 'Low', 'No lang attribute on <html>',\n    ok.filter(p => !p.lang), p => path(p.url),\n    'Add lang=\"en\" (or the correct language) to the <html> tag.',\n    'https://developers.google.com/search/docs/specialty/international/managing-multi-regional-sites');\n  add('MISSING_OPEN_GRAPH', 'Social', 'Low', 'No Open Graph title/image for social sharing',\n    ok.filter(p => !p.ogTitlePresent || !p.ogImagePresent),\n    p => path(p.url) + ' → og:title ' + (p.ogTitlePresent ? 'yes' : 'no') + ', og:image ' + (p.ogImagePresent ? 'yes' : 'no'),\n    'Add og:title, og:description and og:image so shared links show a proper preview.',\n    'https://ogp.me/');\n\n  // ---- Site-level ----\n  if (ctx) {\n    if (/^http:/i.test(ctx.targetUrl)) add('NOT_HTTPS', 'Security', 'Medium', 'Site audited over plain HTTP',\n      [{ url: ctx.targetUrl }], p => p.url, 'Serve the site over HTTPS and redirect HTTP to HTTPS.',\n      'https://developers.google.com/search/docs/crawling-indexing/site-move-with-url-changes');\n    if (ctx.robotsMode === 'NOT_FOUND_ALLOW_ALL') add('ROBOTS_TXT_MISSING', 'Crawlability', 'Low', 'No robots.txt file',\n      [{ url: ctx.robotsUrl }], p => p.url + ' → HTTP ' + ctx.robotsStatusCode,\n      'Not required, but a robots.txt lets you list your sitemap and control crawling.',\n      'https://developers.google.com/search/docs/crawling-indexing/robots/intro');\n    const d = disc || {};\n    if (d.sitemapUrlsFound === 0) add('SITEMAP_NOT_FOUND', 'Crawlability', 'Medium', 'No readable XML sitemap found',\n      [{ url: d.rootSitemapUrl || ctx.robotsUrl }], p => p.url + ' → HTTP ' + (d.rootSitemapStatus || 'no response') + ', 0 URLs read',\n      'Create an XML sitemap listing every page you want in Google, link it from robots.txt and submit it in Search Console.',\n      'https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap');\n    else if (d.sitemapUrlsFound > 0 && !(ctx.sitemaps || []).length) add('SITEMAP_NOT_DECLARED', 'Crawlability', 'Low', 'Sitemap exists but robots.txt does not list it',\n      [{ url: ctx.robotsUrl }], p => p.url + ' → no \"Sitemap:\" line (sitemap found at ' + d.rootSitemapUrl + ' with ' + d.sitemapUrlsFound + ' URLs)',\n      'Add \"Sitemap: ' + (d.rootSitemapUrl || '') + '\" to robots.txt so every search engine can find it.',\n      'https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap');\n  }\n\n  // ---- PageSpeed (filled in by Milestone 4 when available) ----\n  for (const r of (psi || [])) {\n    if (r.psiStatus !== 'OK') {\n      add('PSI_UNAVAILABLE_' + String(r.strategy || 'unknown').toUpperCase(), 'Data confidence', 'Info',\n        'PageSpeed could not be measured (' + r.strategy + ')', [{ url: r.url }],\n        p => path(p.url) + ' → ' + r.psiStatus + (r.psiError ? ': ' + r.psiError : ''),\n        'No performance numbers were recorded for this run. Re-run later or add a PageSpeed API key.', r.reportUrl);\n      continue;\n    }\n    const s = r.performanceScore;\n    if (s !== null && s < 50) add('PSI_POOR_PERFORMANCE_' + r.strategy.toUpperCase(), 'Performance', 'High',\n      'Poor PageSpeed performance (' + r.strategy + ')', [{ url: r.url }],\n      p => path(p.url) + ' → score ' + s + '/100, LCP ' + r.lcpLab + ', TBT ' + r.tbtLab + ', CLS ' + r.clsLab + ' (lab)',\n      'Start with the biggest opportunities listed by PageSpeed: ' + (r.topOpportunities || 'see report') + '.', r.reportUrl);\n    else if (s !== null && s < 90) add('PSI_NEEDS_IMPROVEMENT_' + r.strategy.toUpperCase(), 'Performance', 'Medium',\n      'PageSpeed performance needs improvement (' + r.strategy + ')', [{ url: r.url }],\n      p => path(p.url) + ' → score ' + s + '/100, LCP ' + r.lcpLab + ', TBT ' + r.tbtLab + ', CLS ' + r.clsLab + ' (lab)',\n      'Work through the top opportunities: ' + (r.topOpportunities || 'see report') + '.', r.reportUrl);\n    if (r.fieldCwvAssessment === 'FAILED') add('CWV_FAILED_' + r.strategy.toUpperCase(), 'Performance', 'High',\n      'Real-user Core Web Vitals failing (' + r.strategy + ')', [{ url: r.url }],\n      p => path(p.url) + ' → field LCP ' + r.lcpField + ', INP ' + r.inpField + ', CLS ' + r.clsField + ' (Chrome UX Report, 28 days)',\n      'Fix the failing metric first; real-user data is what Google uses for page experience.', r.reportUrl);\n  }\n\n  // ---- Prioritize: severity first, then how much of the site is affected ----\n  for (const f of findings) {\n    f.priorityScore = Math.round((SEV[f.severity] * 10 + Math.min(1, f.affectedShare) * 10) * 10) / 10;\n  }\n  findings.sort((a, b) => b.priorityScore - a.priorityScore || a.findingId.localeCompare(b.findingId));\n  findings.forEach((f, i) => { f.priorityRank = i + 1; f.priority = { High: 'P1 · Fix first', Medium: 'P2 · Plan next', Low: 'P3 · Nice to have', Info: 'P4 · Review' }[f.severity]; });\n  return findings;\n}\n\nfunction buildSummary(pages, ctx, findings, disc) {\n  const by = s => findings.filter(f => f.severity === s).length;\n  // Transparent rule-based score: start at 100, subtract per finding = weight × share of pages affected.\n  const W = { High: 15, Medium: 7, Low: 2, Info: 0 };\n  let score = 100;\n  for (const f of findings) score -= W[f.severity] * Math.max(0.2, Math.min(1, f.affectedShare));\n  return {\n    runId: ctx ? ctx.runId : '', auditTarget: ctx ? ctx.targetUrl : '', auditedAt: new Date().toISOString(),\n    pagesAudited: pages.length,\n    pagesOk: pages.filter(p => p.extractionStatus === 'OK').length,\n    pagesFailed: pages.filter(p => p.fetchStatus !== 'OK').length,\n    pagesExcludedJsRendered: pages.filter(p => p.extractionStatus === 'OK' && p.jsRenderedSuspected).length,\n    robotsMode: ctx ? ctx.robotsMode : '',\n    pagesFromSitemap: (disc && disc.fromSitemap) || 0, pagesFromLinks: (disc && disc.fromLinks) || 0, sitemapUrlsFound: (disc && disc.sitemapUrlsFound) || 0,\n    findingsTotal: findings.length, high: by('High'), medium: by('Medium'), low: by('Low'), info: by('Info'),\n    seoHealthScore: Math.max(0, Math.round(score)),\n    scoreMethod: '100 minus (High 15 / Medium 7 / Low 2) × share of pages affected (min 20%) per finding. Our own rule-based score, not a Google metric.',\n    topFindings: findings.slice(0, 5).map(f => f.priority + ': ' + f.title).join(' ; ')\n  };\n}\n\nconst pages = $('Extract SEO Data').all().map(i => i.json);\nconst ctx = $('Parse robots.txt').first().json;\nlet psi = [];\ntry { psi = $('PageSpeed Results').all().map(i => i.json); } catch (e) { psi = []; }\nlet disc = {};\ntry { disc = $('Plan Crawl List').first().json.discovery || {}; } catch (e) { disc = {}; }\nconst findings = buildFindings(pages, ctx, psi, disc);\nconst summary = buildSummary(pages, ctx, findings, disc);\nreturn findings.map(f => ({ json: Object.assign({ runId: summary.runId, auditTarget: summary.auditTarget, recordType: 'finding' }, f) }))\n  .concat([{ json: Object.assign({ recordType: 'summary' }, summary) }]);\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "0277b862-1c79-4033-a710-cba589cd4c9d",
+      "name": "Fetch Root Sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2160,
+        -60
+      ],
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; SEOGrowthAgent/0.1; n8n learning project)"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 20000
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "url": "={{ ($('Parse robots.txt').first().json.sitemaps || [])[0] || ($('Parse robots.txt').first().json.origin + '/sitemap.xml') }}"
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "executeOnce": true
+    },
+    {
+      "id": "986a745b-34a4-4310-9213-598cf386a5d9",
+      "name": "Sitemap Targets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        -60
+      ],
+      "parameters": {
+        "jsCode": "// Milestone 2.1a: decide which sitemap file(s) to read.\n// Order: \"Sitemap:\" lines in robots.txt, otherwise /sitemap.xml.\n// If that file is a sitemap index (common on WordPress/WooCommerce/Shopify), read up to 5 child\n// sitemaps, preferring products, categories, pages and posts.\nfunction sitemapTargets(ctx, res) {\n  const rootUrl = (ctx.sitemaps && ctx.sitemaps[0]) || (ctx.origin + '/sitemap.xml');\n  const status = Number(res.statusCode || 0);\n  const body = typeof res.data === 'string' ? res.data : (typeof res.body === 'string' ? res.body : '');\n  const locs = re => [...body.matchAll(re)].map(m => m[1].trim().replace(/&amp;/g, '&'));\n  const base = { runId: ctx.runId, rootSitemapUrl: rootUrl, rootSitemapStatus: status, rootSitemapDeclared: !!(ctx.sitemaps && ctx.sitemaps.length) };\n  if (status >= 200 && status < 300 && /<sitemapindex[\\s>]/i.test(body)) {\n    const children = locs(/<sitemap>[\\s\\S]*?<loc>([^<]+)<\\/loc>/gi);\n    const score = u => (/product/i.test(u) ? 0 : /categor|collection|product_cat/i.test(u) ? 1 : /page/i.test(u) ? 2 : /post/i.test(u) ? 3 : 4);\n    const chosen = children.filter(u => !/\\.gz(\\?|$)/i.test(u)).sort((a, b) => score(a) - score(b)).slice(0, 5);\n    if (chosen.length) return chosen.map(u => ({ ...base, rootSitemapType: 'index', childSitemapsInIndex: children.length, sitemapUrl: u }));\n  }\n  // Plain urlset, missing, or unreadable: fetch the root URL again in the next step and let the planner decide.\n  return [{ ...base, rootSitemapType: /<urlset[\\s>]/i.test(body) ? 'urlset' : 'none', childSitemapsInIndex: 0, sitemapUrl: rootUrl }];\n}\n\nconst ctx = $('Parse robots.txt').first().json;\nreturn sitemapTargets(ctx, $input.first().json).map(j => ({ json: j }));\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "cff242a1-a8e6-4b4e-a2f7-10f9755fec14",
+      "name": "Fetch Sitemap Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2640,
+        -60
+      ],
+      "parameters": {
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; SEOGrowthAgent/0.1; n8n learning project)"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchInterval": "={{ $('Parse robots.txt').first().json.delayMs }}",
+              "batchSize": 1
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 20000
+        },
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "url": "={{ $json.sitemapUrl }}"
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Start (Manual Test)": {
+      "main": [
+        [
+          {
+            "node": "Agent Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Config": {
+      "main": [
+        [
+          {
+            "node": "Validate URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate URL": {
+      "main": [
+        [
+          {
+            "node": "Is URL Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is URL Valid?": {
+      "main": [
+        [
+          {
+            "node": "Ready for Crawl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejected URL (Log)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready for Crawl": {
+      "main": [
+        [
+          {
+            "node": "Fetch robots.txt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch robots.txt": {
+      "main": [
+        [
+          {
+            "node": "Parse robots.txt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse robots.txt": {
+      "main": [
+        [
+          {
+            "node": "Robots Allows Start Page?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Robots Allows Start Page?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Root Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Blocked by robots.txt (Log)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Start Page": {
+      "main": [
+        [
+          {
+            "node": "Plan Crawl List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Crawl List": {
+      "main": [
+        [
+          {
+            "node": "Fetch Pages (throttled)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pages (throttled)": {
+      "main": [
+        [
+          {
+            "node": "Collect Page Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Page Results": {
+      "main": [
+        [
+          {
+            "node": "Extract SEO Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract SEO Data": {
+      "main": [
+        [
+          {
+            "node": "Build PageSpeed Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build PageSpeed Requests": {
+      "main": [
+        [
+          {
+            "node": "PageSpeed API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PageSpeed API": {
+      "main": [
+        [
+          {
+            "node": "PageSpeed Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PageSpeed Results": {
+      "main": [
+        [
+          {
+            "node": "Generate Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Root Sitemap": {
+      "main": [
+        [
+          {
+            "node": "Sitemap Targets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sitemap Targets": {
+      "main": [
+        [
+          {
+            "node": "Fetch Sitemap Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Sitemap Files": {
+      "main": [
+        [
+          {
+            "node": "Fetch Start Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  }
+}
