@@ -565,6 +565,105 @@
         "url": "={{ $json.sitemapUrl }}"
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "id": "281e9cb0-8f91-4671-8b30-5e897fe1644a",
+      "name": "Run Summary Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4320,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// One row per audit run, with PageSpeed scores next to the SEO score for trend tracking.\nconst s = $input.all().map(i => i.json).find(r => r.recordType === 'summary');\nlet psi = [];\ntry { psi = $('PageSpeed Results').all().map(i => i.json); } catch (e) { psi = []; }\nconst score = k => { const r = psi.find(p => p.strategy === k && p.psiStatus === 'OK'); return r ? r.performanceScore : null; };\nreturn [{ json: {\n  runId: s.runId, auditTarget: s.auditTarget, auditedAt: s.auditedAt,\n  pagesAudited: s.pagesAudited, pagesOk: s.pagesOk, pagesFailed: s.pagesFailed,\n  pagesFromSitemap: s.pagesFromSitemap, sitemapUrlsFound: s.sitemapUrlsFound,\n  findingsTotal: s.findingsTotal, high: s.high, medium: s.medium, low: s.low,\n  seoHealthScore: s.seoHealthScore, mobileScore: score('mobile'), desktopScore: score('desktop'),\n  psiStatus: psi.map(p => p.strategy + ':' + p.psiStatus).join(', '),\n  topFindings: s.topFindings\n} }];",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "909fa7f6-d0b7-4f96-9774-378a2d45fa7b",
+      "name": "Findings Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4320,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// One row per finding. status starts as 'open' so fixes can be tracked later (M9).\nreturn $input.all().map(i => i.json).filter(r => r.recordType === 'finding').map(f => ({ json: {\n  runId: f.runId, auditTarget: f.auditTarget, priorityRank: f.priorityRank, priority: f.priority,\n  severity: f.severity, findingId: f.findingId, category: f.category, title: f.title,\n  affectedPages: f.affectedPages, pagesAudited: f.pagesAudited,\n  evidence: String(f.evidence).slice(0, 2000), recommendation: f.recommendation,\n  reference: f.reference || '', status: 'open'\n} }));",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "681b7f08-8e8f-4fd5-9112-395fe3664ebf",
+      "name": "Save Run",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4560,
+        0
+      ],
+      "parameters": {
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        },
+        "dataTableId": {
+          "__rl": true,
+          "cachedResultName": "seo_audit_runs",
+          "mode": "id",
+          "value": "WS3IvY0ZMk31JXzV"
+        },
+        "operation": "insert",
+        "resource": "row"
+      }
+    },
+    {
+      "id": "01ef75f1-bba9-43f6-a9a0-b83f4c22933f",
+      "name": "Save Findings",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4560,
+        200
+      ],
+      "parameters": {
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        },
+        "dataTableId": {
+          "__rl": true,
+          "cachedResultName": "seo_findings",
+          "mode": "id",
+          "value": "2tZyk3od6EVNFsa7"
+        },
+        "operation": "insert",
+        "resource": "row"
+      }
+    },
+    {
+      "id": "a9bebaf4-06d0-4c51-9e79-5ecf86645921",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        240,
+        500
+      ],
+      "parameters": {
+        "misfirePolicy": "coalesce",
+        "rule": {
+          "interval": [
+            {
+              "expression": "0 12 7 * * *",
+              "field": "cronExpression"
+            }
+          ]
+        }
+      }
     }
   ],
   "connections": {
@@ -790,10 +889,62 @@
           }
         ]
       ]
+    },
+    "Generate Findings": {
+      "main": [
+        [
+          {
+            "node": "Run Summary Row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Findings Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Summary Row": {
+      "main": [
+        [
+          {
+            "node": "Save Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Findings Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Agent Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
-    "availableInMCP": true
+    "availableInMCP": true,
+    "timezone": "America/New_York",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
   }
 }
