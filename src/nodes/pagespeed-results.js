@@ -19,7 +19,7 @@ function parsePsi(req, res) {
   let j = body;
   if (typeof j === 'string') { try { j = JSON.parse(j); } catch (e) { j = null; } }
   if (res.error && !status) { out.psiStatus = 'NETWORK_ERROR'; out.psiError = String(res.error.message || res.error).slice(0, 300); return out; }
-  if (status === 429) { out.psiStatus = 'RATE_LIMITED'; out.psiError = 'Google limited requests without an API key. Add a free API key to fix this.'; return out; }
+  if (status === 429) { out.psiStatus = 'RATE_LIMITED'; out.psiError = String((j && j.error && j.error.message) || 'Google rate limit reached. Without an API key the daily quota is 0.').slice(0, 300); return out; }
   if (status < 200 || status >= 300 || !j || !j.lighthouseResult) {
     out.psiStatus = 'API_ERROR_' + (status || 'UNKNOWN');
     out.psiError = String((j && j.error && j.error.message) || 'No Lighthouse result returned').slice(0, 300);

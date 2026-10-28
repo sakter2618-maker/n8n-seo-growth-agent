@@ -13,7 +13,9 @@ blocks the crawler or an API is rate-limited), the report says so instead of gue
 > **Status:** milestones 1–7 and the first M9 cycle work and are tested. The agent runs
 > daily on the VPS, saves every run and finding to n8n Data Tables, logs failures through
 > an error workflow, and its fixes reached the live demo store through a reviewed pull
-> request (score 91 → 98). Google Sheets export, Search Console and AI summaries are next.
+> request (score 91 → 98). PageSpeed runs with an API key (mobile 92, desktop 99), and its top
+> opportunity became a second fix proposal. Google Sheets export, Search Console and AI
+> summaries are next.
 > See [Roadmap](#roadmap).
 
 ## What it does
@@ -130,7 +132,7 @@ docs/INTERVIEW_GUIDE.md           how to explain the project
 | M2 robots.txt-aware, throttled crawling | ✅ Done |
 | M2.1 Sitemap discovery with section sampling | ✅ Done |
 | M3 SEO data extraction | ✅ Done |
-| M4 PageSpeed Insights | ✅ Built; needs an API key for live scores |
+| M4 PageSpeed Insights | ✅ Done — live store: mobile 92, desktop 99 (Lighthouse 13.5) |
 | M5 Findings and prioritization | ✅ Done |
 | M6 Save results (n8n Data Tables: runs, findings) | ✅ Done — Google Sheets mirror next |
 | M7 Daily schedule + error workflow logging to `seo_errors` | ✅ Done — email alerts next |
