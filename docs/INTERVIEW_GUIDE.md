@@ -96,3 +96,4 @@
 | Extraction cross-check | 20 pages, 0 mismatches |
 | Polite delay | ≥ 1.5 s per request |
 | Demo store | 24 products, 35 pages, 6 seeded issues, all 6 found |
+| Before → after (live) | score 91 → 98, Medium findings 5 → 0 |
