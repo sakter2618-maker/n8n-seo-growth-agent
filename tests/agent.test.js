@@ -94,6 +94,18 @@ test('M2.1 falls back to start-page links when there is no sitemap', () => {
   assert.equal(out[0].discovery.sitemapUrlsFound, 0);
 });
 
+test('M2.1 handles sites in a subfolder: folder sitemap fallback and audit scope', () => {
+  const sub = { ...ctx, targetUrl: 'https://user.github.io/shop/', hostname: 'user.github.io', origin: 'https://user.github.io', sitemaps: [] };
+  const targets = runNode('sitemap-targets.js', { input: [{ statusCode: 404, data: 'Not found' }], nodes: { 'Parse robots.txt': [sub] } });
+  assert.deepEqual(targets.map(t => t.sitemapUrl), ['https://user.github.io/sitemap.xml', 'https://user.github.io/shop/sitemap.xml']);
+  const files = [{ statusCode: 404, data: 'Not found' }, urlset(['https://user.github.io/shop/products/a/', 'https://user.github.io/shop/about/'])];
+  const out = runNode('plan-crawl-list.js', { input: [{ statusCode: 200, data: '<a href="/other-project/">x</a><a href="/shop/journal/">j</a>' }],
+    nodes: { 'Parse robots.txt': [sub], 'Fetch Sitemap Files': files, 'Sitemap Targets': targets } });
+  assert.deepEqual(out.map(o => o.url), ['https://user.github.io/shop/', 'https://user.github.io/shop/products/a/', 'https://user.github.io/shop/about/', 'https://user.github.io/shop/journal/']);
+  assert.equal(out[0].discovery.sitemapSource, 'folder');
+  assert.equal(out[0].discovery.offSite, 1, 'another project on the same domain is out of scope');
+});
+
 // ---------- M3: extraction ----------
 const pages = runNode('extract-seo-data.js', { input: fixture('edge-cases.json') });
 

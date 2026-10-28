@@ -15,7 +15,15 @@ function sitemapTargets(ctx, res) {
     if (chosen.length) return chosen.map(u => ({ ...base, rootSitemapType: 'index', childSitemapsInIndex: children.length, sitemapUrl: u }));
   }
   // Plain urlset, missing, or unreadable: fetch the root URL again in the next step and let the planner decide.
-  return [{ ...base, rootSitemapType: /<urlset[\s>]/i.test(body) ? 'urlset' : 'none', childSitemapsInIndex: 0, sitemapUrl: rootUrl }];
+  const type = /<urlset[\s>]/i.test(body) ? 'urlset' : 'none';
+  const out = [{ ...base, rootSitemapType: type, childSitemapsInIndex: 0, sitemapUrl: rootUrl }];
+  // Sites that live in a subfolder (e.g. example.com/shop/ or user.github.io/project/) usually keep
+  // their sitemap there too. If the root sitemap is missing, also try <folder>/sitemap.xml.
+  const folder = ctx.targetUrl.replace(/[?#].*$/, '').replace(/[^\/]*$/, '');
+  if (type === 'none' && folder !== ctx.origin + '/' && folder + 'sitemap.xml' !== rootUrl) {
+    out.push({ ...base, rootSitemapType: 'folder', childSitemapsInIndex: 0, sitemapUrl: folder + 'sitemap.xml' });
+  }
+  return out;
 }
 
 if (typeof module !== 'undefined' && typeof $input === 'undefined') {
