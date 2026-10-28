@@ -46,16 +46,22 @@ function planCrawl(ctx, startRes, sitemapFiles, targets) {
     fromSitemap: 0, fromLinks: 0, linksFound: 0, offSite: 0, nonHtml: 0, duplicates: 0, blockedByRobots: 0, overPageLimit: 0 };
   const t0 = targets[0] || {};
   stats.sitemapSource = t0.rootSitemapType === 'index' ? 'index' : (t0.rootSitemapDeclared ? 'robots.txt' : '/sitemap.xml');
+  const folderTarget = targets.find(t => t.rootSitemapType === 'folder');
   stats.rootSitemapUrl = t0.rootSitemapUrl || '';
+  stats.folderSitemapUrl = folderTarget ? folderTarget.sitemapUrl : '';
   stats.rootSitemapStatus = t0.rootSitemapStatus || 0;
 
   const startUrl = resolve(ctx.targetUrl, ctx.targetUrl);
+  // Audit scope: the folder of the start URL. For example.com/ that is the whole site; for
+  // user.github.io/shop/ only pages under /shop/ are audited, never other projects on the domain.
+  const scope = startUrl.replace(/[?#].*$/, '').replace(/[^\/]*$/, '').replace(/^https?:\/\/(www\.)?/i, '');
+  stats.scope = scope;
   const seen = new Set([startUrl]);
   const planned = [{ url: startUrl, source: 'start' }];
   function accept(u) {
     if (!u) return null;
     const h = u.replace(/^https?:\/\//i, '').split(/[\/?#:]/)[0].replace(/^www\./, '');
-    if (h !== host) { stats.offSite++; return null; }
+    if (h !== host || !u.replace(/^https?:\/\/(www\.)?/i, '').startsWith(scope)) { stats.offSite++; return null; }
     if (/\.(jpe?g|png|gif|svg|webp|avif|ico|pdf|zip|css|js|xml|txt|json|mp4|mp3|woff2?)(\?|$)/i.test(u)) { stats.nonHtml++; return null; }
     if (seen.has(u)) { stats.duplicates++; return null; }
     seen.add(u);
@@ -71,11 +77,13 @@ function planCrawl(ctx, startRes, sitemapFiles, targets) {
     const body = typeof f.data === 'string' ? f.data : (typeof f.body === 'string' ? f.body : '');
     if (st < 200 || st >= 300 || !/<urlset[\s>]/i.test(body)) continue;
     stats.sitemapFilesRead++;
+    if (folderTarget && sitemapFiles.indexOf(f) === targets.indexOf(folderTarget)) stats.sitemapSource = 'folder';
     for (const m of body.matchAll(/<url>[\s\S]*?<loc>([^<]+)<\/loc>/gi)) {
       stats.sitemapUrlsFound++;
       const u = accept(resolve(m[1], ctx.targetUrl));
       if (!u) continue;
-      const seg = (u.replace(/^https?:\/\/[^\/]+/i, '').split('/')[1] || '(root)');
+      // Section = first folder below the audit scope (products, shop, journal...).
+      const seg = (u.replace(/^https?:\/\/(www\.)?/i, '').slice(scope.length).split('/')[0] || '(root)');
       if (!groups.has(seg)) groups.set(seg, []);
       groups.get(seg).push(u);
     }

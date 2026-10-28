@@ -164,10 +164,15 @@ function buildFindings(pages, ctx, psi, disc) {
       [{ url: d.rootSitemapUrl || ctx.robotsUrl }], p => p.url + ' → HTTP ' + (d.rootSitemapStatus || 'no response') + ', 0 URLs read',
       'Create an XML sitemap listing every page you want in Google, link it from robots.txt and submit it in Search Console.',
       'https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap');
-    else if (d.sitemapUrlsFound > 0 && !(ctx.sitemaps || []).length) add('SITEMAP_NOT_DECLARED', 'Crawlability', 'Low', 'Sitemap exists but robots.txt does not list it',
-      [{ url: ctx.robotsUrl }], p => p.url + ' → no "Sitemap:" line (sitemap found at ' + d.rootSitemapUrl + ' with ' + d.sitemapUrlsFound + ' URLs)',
-      'Add "Sitemap: ' + (d.rootSitemapUrl || '') + '" to robots.txt so every search engine can find it.',
+    else if (d.sitemapUrlsFound > 0 && !(ctx.sitemaps || []).length) {
+      const found = d.sitemapSource === 'folder' ? d.folderSitemapUrl : d.rootSitemapUrl;
+      add('SITEMAP_NOT_DECLARED', 'Crawlability', 'Low', 'Sitemap exists but robots.txt does not list it',
+      [{ url: ctx.robotsUrl }], p => p.url + ' → no "Sitemap:" line (sitemap found at ' + found + ' with ' + d.sitemapUrlsFound + ' URLs)',
+      d.sitemapSource === 'folder'
+        ? 'Search engines only read robots.txt at the domain root. If you cannot edit it (for example a project site on a shared domain), submit ' + found + ' in Google Search Console instead.'
+        : 'Add "Sitemap: ' + found + '" to robots.txt so every search engine can find it.',
       'https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap');
+    }
   }
 
   // ---- PageSpeed (filled in by Milestone 4 when available) ----
