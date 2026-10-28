@@ -85,6 +85,14 @@
 > pages, with six SEO issues placed on purpose and documented. That gives a known answer
 > key: the agent found all six, plus three real issues I hadn't planted.
 
+**11. Did every fix improve the score?**
+বাংলায়: না, আর এটা লুকাইনি। গতির সংশোধনে সমস্যাটা চলে গেছে, কিন্তু score একই থেকেছে। এটা সৎভাবে লিখে রাখাটাই দেখায় যে ডেটা আসল।
+> No, and I report that honestly. PageSpeed flagged render-blocking fonts with an
+> estimated saving of about 2.1 s. After the fix the opportunity disappeared, but the mobile
+> score stayed at 92 and LCP at 2.7 s. The estimate was an upper bound, and the rest is
+> network time on GitHub Pages. I measure every change before and after instead of
+> assuming the estimate came true.
+
 ## Numbers to remember
 
 | | |
@@ -97,3 +105,4 @@
 | Polite delay | ≥ 1.5 s per request |
 | Demo store | 24 products, 35 pages, 6 seeded issues, all 6 found |
 | Before → after (live) | score 91 → 98, Medium findings 5 → 0 |
+| PageSpeed (live) | mobile 92, desktop 99 |
