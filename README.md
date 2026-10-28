@@ -64,8 +64,16 @@ health score **91/100**.
 | P2 | No H1 | /journal/caring-for-hand-stitched-cotton/ |
 | P3 | Sitemap not in robots.txt | sitemap found in the /sutokotha/ folder |
 
-The fixes were proposed as [pull request #1](https://github.com/sakter2618-maker/sutokotha/pull/1).
-They go live only after a person reviews and merges it.
+The fixes were proposed as [pull request #1](https://github.com/sakter2618-maker/sutokotha/pull/1)
+and went live only after a person reviewed and merged it. Re-audit (run_48):
+
+| | Before | After |
+|---|---|---|
+| SEO health score | 91 | **98** |
+| Medium findings | 5 | **0** |
+| Total findings | 12 | 7 (only editorial items and things outside the repo) |
+
+Full write-up: [Sutokotha docs/RESULTS.md](https://github.com/sakter2618-maker/sutokotha/blob/main/docs/RESULTS.md).
 
 The SEO health score is our own transparent formula, not a Google metric: 100 minus
 (High 15 / Medium 7 / Low 2) × share of pages affected, per finding.
@@ -123,7 +131,7 @@ docs/INTERVIEW_GUIDE.md           how to explain the project
 | M6 Save results (n8n Data Tables: runs, findings) | ✅ Done — Google Sheets mirror next |
 | M7 Daily schedule + error workflow logging to `seo_errors` | ✅ Done — email alerts next |
 | M8 Search Console, sales data, AI summary | Planned |
-| M9 Fix proposals as pull requests, published only after human approval | Planned |
+| M9 Fix proposals as pull requests, published only after human approval | ✅ First cycle done (PR #1, score 91 → 98); next: open PRs from n8n directly |
 
 The live test site is [Sutokotha](https://github.com/sakter2618-maker/sutokotha), a demo
 store built for this project with known SEO issues for the agent to find.
