@@ -16,20 +16,27 @@ blocks the crawler or an API is rate-limited), the report says so instead of gue
 ## What it does
 
 ```mermaid
-flowchart LR
-  A[Agent Config<br/>target URL, allowlist, max pages] --> B{Validate URL}
+flowchart TD
+  T1([Daily 07:12 schedule]) --> A
+  T2([Manual run]) --> A
+  A[Agent Config<br/>URL, allowlist, max pages] --> B{Validate URL}
   B -- rejected --> X[Log reason]
-  B -- ok --> C[robots.txt]
+  B -- ok --> C[robots.txt rules]
   C -- blocked --> Y[Log BLOCKED_BY_ROBOTS]
-  C -- allowed --> D[Sitemap discovery<br/>index → child sitemaps]
-  D --> E[Plan crawl<br/>sample across site sections]
-  E --> F[Fetch pages<br/>one at a time, polite delay]
-  F --> G[Extract SEO data<br/>title, meta, canonical, H1-H3,<br/>links, images, word count]
+  C -- allowed --> D[Sitemap discovery<br/>root, index, folder]
+  D --> E[Plan crawl<br/>sample across sections]
+  E --> F[Fetch pages<br/>1 at a time, 1.5 s apart]
+  F --> G[Extract 48 SEO fields]
   G --> H[PageSpeed Insights<br/>mobile + desktop]
   H --> I[Findings engine<br/>25+ rules, evidence, priority]
-  I --> J[(Data Tables: runs + findings)]
-  I -. errors .-> K[(Error workflow → seo_errors)]
+  I --> J[(Data tables<br/>runs + findings)]
+  I --> K[propose-fixes.js<br/>pull request]
+  K --> L{{Human review and merge}}
+  L --> M[GitHub Actions<br/>rebuild site]
+  F -. any failure .-> Z[(Error workflow<br/>seo_errors)]
 ```
+
+(Static image: [docs/img/architecture.png](docs/img/architecture.png))
 
 | Step | What happens | Why it matters |
 |---|---|---|
@@ -41,20 +48,27 @@ flowchart LR
 | **PageSpeed** | Lab metrics (score, LCP, TBT, CLS) and real-user Core Web Vitals when Google has them | Performance is a ranking factor and a conversion factor |
 | **Findings** | Each finding has a severity, the affected pages, the exact evidence, a fix and a link to Google's documentation | Every recommendation can be checked by a person |
 
-## Example result
+## Example result: live demo store
 
-books.toscrape.com (a public sandbox built for scraping practice), 20 pages:
+[Sutokotha](https://sakter2618-maker.github.io/sutokotha/) is a demo store built for this
+project, with 6 SEO issues planted on purpose. First live audit, run_47 (2026-10-28):
+35 of 35 pages audited (34 found through the sitemap), **all 6 planted issues found**, SEO
+health score **91/100**.
 
-| Priority | Finding | Evidence |
+| Priority | Finding | Evidence (shortened) |
 |---|---|---|
-| P1 · Fix first | Different URLs serve identical content | `/` and `/index.html` have the same text, and neither has a canonical tag |
-| P2 · Plan next | No canonical tags | 20 of 20 pages |
-| P2 · Plan next | Meta description empty | 20 of 20 pages (`content` attribute is only whitespace) |
-| P2 · Plan next | No readable XML sitemap | `/sitemap.xml` returned HTTP 404 |
-| P3 · Nice to have | No H2 structure, no Open Graph, no robots.txt | — |
+| P2 | Meta description missing | 6 pages, e.g. /products/akash-kantha-throw/ → no tag |
+| P2 | No canonical tag | 5 category pages |
+| P2 | Images without alt text | 3 product pages, 1 image each |
+| P2 | Duplicate title | two "Nodi kantha throw" product pages |
+| P2 | No H1 | /journal/caring-for-hand-stitched-cotton/ |
+| P3 | Sitemap not in robots.txt | sitemap found in the /sutokotha/ folder |
 
-SEO health score: **76/100**. This is our own transparent formula, not a Google metric:
-100 minus (High 15 / Medium 7 / Low 2) × share of pages affected, per finding.
+The fixes were proposed as [pull request #1](https://github.com/sakter2618-maker/sutokotha/pull/1).
+They go live only after a person reviews and merges it.
+
+The SEO health score is our own transparent formula, not a Google metric: 100 minus
+(High 15 / Medium 7 / Low 2) × share of pages affected, per finding.
 
 ## Accuracy safeguards
 
