@@ -1,5 +1,7 @@
 # SEO Growth Agent (n8n)
 
+[![Tests](https://github.com/sakter2618-maker/n8n-seo-growth-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/sakter2618-maker/n8n-seo-growth-agent/actions/workflows/tests.yml)
+
 A reusable n8n workflow that audits the SEO of any website you are authorized to
 check. It runs on a self-hosted n8n server (Hostinger VPS) and produces evidence-based,
 prioritized findings.
