@@ -112,7 +112,8 @@ states, and the findings engine. See [docs/TESTING.md](docs/TESTING.md).
 ## Project layout
 
 ```
-workflows/seo-growth-agent.json   n8n export (no credentials inside)
+workflows/                        n8n exports (agent + error handler), import guide
+docs/DATA_TABLES.md               storage schema
 src/nodes/*.js                    source of each Code node
 tests/                            automated tests and fixtures
 docs/TESTING.md                   manual and automated test steps
