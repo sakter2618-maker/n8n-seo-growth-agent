@@ -1,0 +1,16 @@
+{
+  "name": "SEO Growth Agent - Error Handler",
+  "nodes": [
+    { "name": "On Agent Error", "type": "n8n-nodes-base.errorTrigger", "typeVersion": 1, "position": [240, 300], "parameters": {} },
+    { "name": "Format Error", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [480, 300],
+      "parameters": { "mode": "runOnceForAllItems", "language": "javaScript",
+        "jsCode": "// Turn n8n's error payload into one readable log row.\nconst e = $input.first().json;\nconst ex = e.execution || {};\nconst err = ex.error || {};\nreturn [{ json: {\n  occurredAt: new Date().toISOString(),\n  workflowName: (e.workflow && e.workflow.name) || '',\n  executionId: String(ex.id || ''),\n  executionUrl: ex.url || '',\n  failedNode: ex.lastNodeExecuted || (err.node && err.node.name) || '',\n  errorMessage: String(err.message || err.description || 'Unknown error').slice(0, 1000),\n  mode: ex.mode || ''\n} }];" } },
+    { "name": "Save Error", "type": "n8n-nodes-base.dataTable", "typeVersion": 1.1, "position": [720, 300],
+      "parameters": { "resource": "row", "operation": "insert", "dataTableId": { "__rl": true, "mode": "name", "value": "seo_errors" }, "columns": { "mappingMode": "autoMapInputData", "value": null } } }
+  ],
+  "connections": {
+    "On Agent Error": { "main": [[{ "node": "Format Error", "type": "main", "index": 0 }]] },
+    "Format Error": { "main": [[{ "node": "Save Error", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

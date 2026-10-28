@@ -612,9 +612,8 @@
         },
         "dataTableId": {
           "__rl": true,
-          "cachedResultName": "seo_audit_runs",
-          "mode": "id",
-          "value": "WS3IvY0ZMk31JXzV"
+          "mode": "name",
+          "value": "seo_audit_runs"
         },
         "operation": "insert",
         "resource": "row"
@@ -636,9 +635,8 @@
         },
         "dataTableId": {
           "__rl": true,
-          "cachedResultName": "seo_findings",
-          "mode": "id",
-          "value": "2tZyk3od6EVNFsa7"
+          "mode": "name",
+          "value": "seo_findings"
         },
         "operation": "insert",
         "resource": "row"
