@@ -8,10 +8,11 @@ Every number in a report comes from the site's own HTML, its robots.txt and site
 or Google PageSpeed Insights. When a step cannot get real data (for example a page
 blocks the crawler or an API is rate-limited), the report says so instead of guessing.
 
-> **Status:** milestones 1–5 work and are tested. The agent runs daily on the VPS,
-> saves every run and finding to n8n Data Tables, and logs failures through an error
-> workflow. Google Sheets export, Search Console, AI summaries and the approval-gated
-> fix workflow (M9) are next. See [Roadmap](#roadmap).
+> **Status:** milestones 1–7 and the first M9 cycle work and are tested. The agent runs
+> daily on the VPS, saves every run and finding to n8n Data Tables, logs failures through
+> an error workflow, and its fixes reached the live demo store through a reviewed pull
+> request (score 91 → 98). Google Sheets export, Search Console and AI summaries are next.
+> See [Roadmap](#roadmap).
 
 ## What it does
 
