@@ -14,8 +14,8 @@ blocks the crawler or an API is rate-limited), the report says so instead of gue
 > daily on the VPS, saves every run and finding to n8n Data Tables, logs failures through
 > an error workflow, and its fixes reached the live demo store through a reviewed pull
 > request (score 91 → 98). PageSpeed runs with an API key (mobile 92, desktop 99), and its top
-> opportunity became a second fix proposal. Google Sheets export, Search Console and AI
-> summaries are next.
+> opportunity became a second fix proposal. Results are also mirrored to Google Sheets.
+> Search Console and AI summaries are next.
 > See [Roadmap](#roadmap).
 
 ## What it does
@@ -34,7 +34,7 @@ flowchart TD
   F --> G[Extract 48 SEO fields]
   G --> H[PageSpeed Insights<br/>mobile + desktop]
   H --> I[Findings engine<br/>25+ rules, evidence, priority]
-  I --> J[(Data tables<br/>runs + findings)]
+  I --> J[(Data tables + Google Sheets<br/>runs + findings)]
   I --> K[propose-fixes.js<br/>pull request]
   K --> L{{Human review and merge}}
   L --> M[GitHub Actions<br/>rebuild site]
@@ -134,7 +134,7 @@ docs/INTERVIEW_GUIDE.md           how to explain the project
 | M3 SEO data extraction | ✅ Done |
 | M4 PageSpeed Insights | ✅ Done — live store: mobile 92, desktop 99 (Lighthouse 13.5) |
 | M5 Findings and prioritization | ✅ Done |
-| M6 Save results (n8n Data Tables: runs, findings) | ✅ Done — Google Sheets mirror next |
+| M6 Save results: n8n Data Tables + Google Sheets ('Runs' and 'Findings' tabs) | ✅ Done |
 | M7 Daily schedule + error workflow logging to `seo_errors` | ✅ Done — email alerts next |
 | M8 Search Console, sales data, AI summary | Planned |
 | M9 Fix proposals as pull requests, published only after human approval | ✅ First cycle done (PR #1, score 91 → 98); next: open PRs from n8n directly |

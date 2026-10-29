@@ -664,6 +664,74 @@
           ]
         }
       }
+    },
+    {
+      "id": "403b8dfd-358f-40db-a8cb-e0d2670b3685",
+      "name": "Sheets: Append Run",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4560,
+        -120
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "schema": [],
+          "value": {}
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "SEO Growth Agent — Audit Log"
+        },
+        "operation": "append",
+        "options": {
+          "handlingExtraData": "insertInNewColumn"
+        },
+        "resource": "sheet",
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Runs"
+        }
+      }
+    },
+    {
+      "id": "e9064bdd-bff6-4a7d-9f11-17b7fe131b1f",
+      "name": "Sheets: Append Findings",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4560,
+        320
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "schema": [],
+          "value": {}
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "SEO Growth Agent — Audit Log"
+        },
+        "operation": "append",
+        "options": {
+          "handlingExtraData": "insertInNewColumn"
+        },
+        "resource": "sheet",
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Findings"
+        }
+      }
     }
   ],
   "connections": {
@@ -913,6 +981,11 @@
             "node": "Save Run",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Sheets: Append Run",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -922,6 +995,11 @@
         [
           {
             "node": "Save Findings",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sheets: Append Findings",
             "type": "main",
             "index": 0
           }
