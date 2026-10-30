@@ -15,5 +15,12 @@
      written on the first run. If your Google OAuth app stays in *Testing* mode, Google expires the
      sign-in after 7 days and the failure is logged in `seo_errors`.
 4. Click **Execute workflow** to test, then publish to turn on the daily schedule.
+5. Optional, weekly email: import `weekly-email-report.json`.
+   - **Email Report (Gmail):** attach a Gmail OAuth2 credential and set your address in *To*.
+   - **Search Console (28 days):** attach a *Google OAuth2 API* credential with scope
+     `https://www.googleapis.com/auth/webmasters.readonly`, and replace the site in the URL with your
+     own verified property (URL-encoded). The Google account you sign in with must be a user on that
+     property. If this node fails, the email still goes out and says the data could not be read.
+   - Publish it. It runs every Monday at 07:40 in the workflow's time zone.
 
 No credentials or server addresses are stored in these files.

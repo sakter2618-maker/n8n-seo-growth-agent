@@ -176,7 +176,9 @@ test('M7 weekly report uses only saved runs, shows the trend and the latest find
     { runId: 'run_54', priorityRank: 2, priority: 'P3', title: 'No robots.txt <file>', affectedPages: 1, pagesAudited: 35, recommendation: 'Add one' },
     { runId: 'run_54', priorityRank: 1, priority: 'P3', title: 'No H2 subheadings', affectedPages: 3, pagesAudited: 35, recommendation: 'Use H2s' }
   ];
-  const [out] = runNode('weekly-report.js', { input: findings, nodes: { 'Get Recent Runs': runs } });
+  const gsc = { rows: [{ clicks: 3, impressions: 120, ctr: 0.025, position: 18.44 }] };
+  const [out] = runNode('weekly-report.js', { input: [gsc], nodes: { 'Get Recent Runs': runs, 'Get Latest Findings': findings } });
+  assert.ok(out.html.includes('>120<') && out.html.includes('2.5%') && out.html.includes('18.4'));
   assert.equal(out.latestRunId, 'run_54');
   assert.equal(out.runsInReport, 2);
   assert.match(out.subject, /score 98 \(\+7 since 2026-10-28\)/);
@@ -186,7 +188,15 @@ test('M7 weekly report uses only saved runs, shows the trend and the latest find
 });
 
 test('M7 weekly report says so when there are no runs instead of inventing data', () => {
-  const [out] = runNode('weekly-report.js', { input: [{}], nodes: { 'Get Recent Runs': [{}] } });
+  const [out] = runNode('weekly-report.js', { input: [{}], nodes: { 'Get Recent Runs': [{}], 'Get Latest Findings': [{}] } });
   assert.equal(out.runsInReport, 0);
   assert.match(out.subject, /no audit runs/);
+});
+
+test('M8 Search Console section: no rows means "no data yet", errors are shown, not hidden', () => {
+  const runs = [{ runId: 'run_1', auditTarget: 'https://example.com/', auditedAt: '2026-10-29T11:13:00Z', seoHealthScore: 98 }];
+  const [empty] = runNode('weekly-report.js', { input: [{ responseAggregationType: 'auto' }], nodes: { 'Get Recent Runs': runs, 'Get Latest Findings': [{}] } });
+  assert.match(empty.html, /No search data yet/);
+  const [err] = runNode('weekly-report.js', { input: [{ error: { message: 'Forbidden', description: 'not a verified site' } }], nodes: { 'Get Recent Runs': runs, 'Get Latest Findings': [{}] } });
+  assert.match(err.html, /could not be read: not a verified site/);
 });

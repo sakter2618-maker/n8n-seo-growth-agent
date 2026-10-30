@@ -15,7 +15,8 @@
 > sitemap, samples pages across the site and fetches them politely. From each page it
 > extracts about 48 SEO fields, adds Google PageSpeed data, and runs 25 rules that
 > produce prioritized findings. Every finding shows the exact evidence and links to
-> Google's documentation. The code is covered by 12 automated tests. I also built a
+> Google's documentation. Results go to Google Sheets and a weekly email that includes
+> Search Console totals. The code is covered by 16 automated tests. I also built a
 > demo e-commerce store as a safe test site with known issues, and the agent found
 > all of them.
 
@@ -75,10 +76,17 @@
 > found it quickly. I rewrote it with a strict parser and added it to the test suite.
 
 **9. What would you improve next?**
-> Saving results to Google Sheets for trend tracking, a weekly schedule with error alerts,
-> Search Console data to weight findings by real traffic, and an AI summary that only
-> rewrites the evidence and never adds facts. After that, the agent will propose fixes as
-> pull requests, and nothing goes live until a person merges them.
+> Use Search Console clicks and impressions to rank findings by real traffic once the site
+> has search data, add an AI summary that only rewrites the evidence and never adds facts,
+> and open fix pull requests directly from n8n. The AI step is off until its cost is approved.
+
+**12. What went wrong while connecting Google?**
+বাংলায়: Google-এর সাথে জোড়ার সময় তিনটা সমস্যা হয়েছিল, প্রত্যেকটা error message পড়ে ঠিক করেছি।
+> Three things, each found from the exact error. The client secret was mistyped, so I created
+> a new one. The Search Console API wasn't enabled in the Google Cloud project. And the n8n
+> credential was signed in with a different Google account than the one that owned the
+> property, so the API returned an empty site list. I added that account as a user on the
+> property. I also made the email still send, with a clear note, if Search Console fails.
 
 **10. Why build your own test store?**
 > I needed a site I'm authorized to audit and change. The store has 24 products and 35
@@ -97,10 +105,10 @@
 
 | | |
 |---|---|
-| Nodes in the workflow | 22 |
+| Workflows | 3 (agent, error handler, weekly email) |
 | Data points per page | 48 |
 | Finding rules | 25+ |
-| Automated tests | 12, all passing |
+| Automated tests | 16, all passing |
 | Extraction cross-check | 20 pages, 0 mismatches |
 | Polite delay | ≥ 1.5 s per request |
 | Demo store | 24 products, 35 pages, 6 seeded issues, all 6 found |
