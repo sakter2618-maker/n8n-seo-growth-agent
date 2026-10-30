@@ -165,3 +165,28 @@ test('M5 produces evidence-backed, prioritized findings', () => {
   assert.ok(first.evidence.length > 0 && first.recommendation && first.reference);
   assert.ok(summary.seoHealthScore >= 0 && summary.seoHealthScore <= 100);
 });
+
+// ---------- M7: weekly email report ----------
+test('M7 weekly report uses only saved runs, shows the trend and the latest findings', () => {
+  const runs = [
+    { runId: 'run_47', auditTarget: 'https://example.com/', auditedAt: '2026-10-28T04:15:00Z', seoHealthScore: 91, pagesOk: 35, pagesAudited: 35, pagesFailed: 0, high: 0, medium: 5, low: 5, mobileScore: null, desktopScore: null, psiStatus: 'mobile:RATE_LIMITED' },
+    { runId: 'run_54', auditTarget: 'https://example.com/', auditedAt: '2026-10-29T11:13:00Z', seoHealthScore: 98, pagesOk: 35, pagesAudited: 35, pagesFailed: 0, high: 0, medium: 0, low: 5, mobileScore: 92, desktopScore: 99, psiStatus: 'mobile:OK, desktop:OK' }
+  ];
+  const findings = [
+    { runId: 'run_54', priorityRank: 2, priority: 'P3', title: 'No robots.txt <file>', affectedPages: 1, pagesAudited: 35, recommendation: 'Add one' },
+    { runId: 'run_54', priorityRank: 1, priority: 'P3', title: 'No H2 subheadings', affectedPages: 3, pagesAudited: 35, recommendation: 'Use H2s' }
+  ];
+  const [out] = runNode('weekly-report.js', { input: findings, nodes: { 'Get Recent Runs': runs } });
+  assert.equal(out.latestRunId, 'run_54');
+  assert.equal(out.runsInReport, 2);
+  assert.match(out.subject, /score 98 \(\+7 since 2026-10-28\)/);
+  assert.ok(out.html.indexOf('No H2 subheadings') < out.html.indexOf('No robots.txt'));
+  assert.ok(out.html.includes('&lt;file&gt;') && !out.html.includes('<file>'));
+  assert.ok(out.html.includes('not measured'));
+});
+
+test('M7 weekly report says so when there are no runs instead of inventing data', () => {
+  const [out] = runNode('weekly-report.js', { input: [{}], nodes: { 'Get Recent Runs': [{}] } });
+  assert.equal(out.runsInReport, 0);
+  assert.match(out.subject, /no audit runs/);
+});
