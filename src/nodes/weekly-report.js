@@ -1,7 +1,8 @@
 // Weekly email report. Reads only rows the agent already saved (seo_audit_runs and
 // seo_findings), so every number in the email comes from a real audit run.
 // Input: run rows (newest first) from "Get Recent Runs"; findings rows for the newest run
-// from "Get Latest Findings". Output: one item with subject + html for the Gmail node.
+// from "Get Latest Findings"; Google Search Console totals from "Search Console (28 days)".
+// Output: one item with subject + html for the Gmail node.
 
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/17ZnOXQiDrXk9eqaCwiP46zN8SMVrGKCEd2GruLMcuY8/edit';
 
@@ -13,7 +14,24 @@ function num(v) { return (v === null || v === undefined || v === '') ? null : Nu
 function show(v) { return v === null ? 'not measured' : String(v); }
 function day(iso) { return iso ? String(iso).slice(0, 16).replace('T', ' ') + ' UTC' : ''; }
 
-function buildReport(runs, findings, now) {
+// Google Search Console totals (no dimensions). New or low-traffic sites return no rows:
+// we say so instead of showing zeros that look like measurements.
+function gscSection(gsc, td) {
+  gsc = gsc || {};
+  const head = '<h3 style="margin:16px 0 6px">Google Search (Search Console, last 28 days)</h3>';
+  if (gsc.error) {
+    const msg = typeof gsc.error === 'object' ? (gsc.error.description || gsc.error.message) : gsc.error;
+    return head + '<p>Search Console data could not be read: ' + escHtml(String(msg).slice(0, 200)) + '</p>';
+  }
+  const row = Array.isArray(gsc.rows) && gsc.rows[0];
+  if (!row) return head + '<p>No search data yet. Google reports clicks and impressions only after the site starts appearing in search results, which takes days to weeks for a new site.</p>';
+  const pos = typeof row.position === 'number' ? Math.round(row.position * 10) / 10 : '';
+  const ctr = typeof row.ctr === 'number' ? (Math.round(row.ctr * 1000) / 10) + '%' : '';
+  return head + `<table style="border-collapse:collapse"><tr><th ${td}>Clicks</th><th ${td}>Impressions</th><th ${td}>CTR</th><th ${td}>Avg. position</th></tr>` +
+    `<tr><td ${td}>${escHtml(row.clicks)}</td><td ${td}>${escHtml(row.impressions)}</td><td ${td}>${escHtml(ctr)}</td><td ${td}>${escHtml(pos)}</td></tr></table>`;
+}
+
+function buildReport(runs, findings, now, gsc) {
   runs = (runs || []).filter(r => r && r.runId)
     .sort((a, b) => String(b.auditedAt || b.createdAt).localeCompare(String(a.auditedAt || a.createdAt)));
   if (!runs.length) {
@@ -59,6 +77,7 @@ function buildReport(runs, findings, now) {
 </table>
 <h3 style="margin:16px 0 6px">Open findings in the latest run (${escHtml(latest.runId)})</h3>
 <table style="border-collapse:collapse"><tr><th ${td}>Priority</th><th ${td}>Finding</th><th ${td}>Pages</th><th ${td}>What to do</th></tr>${findingRows}</table>
+${gscSection(gsc, td)}
 <h3 style="margin:16px 0 6px">Recent runs</h3>
 <table style="border-collapse:collapse"><tr><th ${td}>Run</th><th ${td}>When</th><th ${td}>Score</th><th ${td}>Pages OK</th><th ${td}>High / Med / Low</th><th ${td}>Mobile / Desktop</th></tr>${runRows}</table>
 <p style="margin-top:16px">Full history: <a href="${SHEET_URL}">Google Sheet</a>. The health score is the agent's own formula, not a Google metric. Fixes go live only after a person reviews and merges a pull request.</p>
@@ -67,9 +86,10 @@ function buildReport(runs, findings, now) {
 }
 
 if (typeof module !== 'undefined' && typeof $input === 'undefined') {
-  module.exports = { buildReport };
+  module.exports = { buildReport, gscSection };
 } else {
   const runs = $('Get Recent Runs').all().map(i => i.json);
-  const findings = $input.all().map(i => i.json);
-  return [{ json: buildReport(runs, findings, new Date().toISOString()) }];
+  const findings = $('Get Latest Findings').all().map(i => i.json);
+  const gsc = $input.first() ? $input.first().json : {};
+  return [{ json: buildReport(runs, findings, new Date().toISOString(), gsc) }];
 }

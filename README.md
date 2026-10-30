@@ -14,8 +14,9 @@ blocks the crawler or an API is rate-limited), the report says so instead of gue
 > daily on the VPS, saves every run and finding to n8n Data Tables, logs failures through
 > an error workflow, and its fixes reached the live demo store through a reviewed pull
 > request (score 91 → 98). PageSpeed runs with an API key (mobile 92, desktop 99), and its top
-> opportunity became a second fix proposal. Results are also mirrored to Google Sheets.
-> Search Console and AI summaries are next.
+> opportunity became a second fix proposal. Results are also mirrored to Google Sheets, and a
+> weekly HTML report (with Google Search Console totals) is emailed every Monday. The store is a
+> verified Search Console property with its sitemap submitted.
 > See [Roadmap](#roadmap).
 
 ## What it does
@@ -35,6 +36,7 @@ flowchart TD
   G --> H[PageSpeed Insights<br/>mobile + desktop]
   H --> I[Findings engine<br/>25+ rules, evidence, priority]
   I --> J[(Data tables + Google Sheets<br/>runs + findings)]
+  J --> W[Weekly email<br/>runs + findings + Search Console]
   I --> K[propose-fixes.js<br/>pull request]
   K --> L{{Human review and merge}}
   L --> M[GitHub Actions<br/>rebuild site]
@@ -109,14 +111,14 @@ that code with fake inputs, so no n8n server or internet connection is needed.
 node --test
 ```
 
-The 12 tests cover URL validation and security, robots.txt rules, sitemap index
+The 16 tests cover URL validation and security, robots.txt rules, sitemap index
 handling, crawl sampling, extraction from messy HTML, PageSpeed parsing and error
-states, and the findings engine. See [docs/TESTING.md](docs/TESTING.md).
+states, the findings engine, and the weekly email report. See [docs/TESTING.md](docs/TESTING.md).
 
 ## Project layout
 
 ```
-workflows/                        n8n exports (agent + error handler), import guide
+workflows/                        n8n exports (agent, error handler, weekly email), import guide
 docs/DATA_TABLES.md               storage schema
 src/nodes/*.js                    source of each Code node
 tests/                            automated tests and fixtures
@@ -135,8 +137,9 @@ docs/INTERVIEW_GUIDE.md           how to explain the project
 | M4 PageSpeed Insights | ✅ Done — live store: mobile 92, desktop 99 (Lighthouse 13.5) |
 | M5 Findings and prioritization | ✅ Done |
 | M6 Save results: n8n Data Tables + Google Sheets ('Runs' and 'Findings' tabs) | ✅ Done |
-| M7 Daily schedule + error workflow logging to `seo_errors` | ✅ Done — email alerts next |
-| M8 Search Console, sales data, AI summary | Planned |
+| M7 Daily schedule, error workflow logging to `seo_errors`, weekly email report (Gmail) | ✅ Done |
+| M8 Search Console | ✅ Property verified through a reviewed PR, sitemap submitted, weekly totals in the email (no search data yet: the site is new) |
+| M8 AI summary, sales data | Planned. The AI summary is off on purpose until its API cost is approved |
 | M9 Fix proposals as pull requests, published only after human approval | ✅ First cycle done (PR #1, score 91 → 98); next: open PRs from n8n directly |
 
 The live test site is [Sutokotha](https://github.com/sakter2618-maker/sutokotha), a demo

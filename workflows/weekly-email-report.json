@@ -1,0 +1,217 @@
+{
+  "name": "SEO Weekly Email Report",
+  "nodes": [
+    {
+      "name": "Start (Manual Test)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Weekly Schedule (Mon 07:40)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        192
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 40 7 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Recent Runs",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        96
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "seo_audit_runs"
+        },
+        "returnAll": false,
+        "limit": 7,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "DESC"
+      }
+    },
+    {
+      "name": "Get Latest Findings",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        96
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "seo_findings"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "runId",
+              "condition": "eq",
+              "keyValue": "={{ $('Get Recent Runs').first().json.runId }}"
+            }
+          ]
+        },
+        "returnAll": true
+      }
+    },
+    {
+      "name": "Search Console (28 days)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        96
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fsakter2618-maker.github.io%2Fsutokotha%2F/searchAnalytics/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ startDate: $now.minus({ days: 30 }).toFormat(\"yyyy-MM-dd\"), endDate: $now.minus({ days: 2 }).toFormat(\"yyyy-MM-dd\") }) }}",
+        "options": {}
+      }
+    },
+    {
+      "name": "Build Weekly Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        96
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Weekly email report. Reads only rows the agent already saved (seo_audit_runs and\n// seo_findings), so every number in the email comes from a real audit run.\n// Input: run rows (newest first) from \"Get Recent Runs\"; findings rows for the newest run\n// from \"Get Latest Findings\"; Google Search Console totals from \"Search Console (28 days)\".\n// Output: one item with subject + html for the Gmail node.\n\nconst SHEET_URL = 'https://docs.google.com/spreadsheets/d/17ZnOXQiDrXk9eqaCwiP46zN8SMVrGKCEd2GruLMcuY8/edit';\n\nfunction escHtml(s) {\n  return String(s === null || s === undefined ? '' : s)\n    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\n}\nfunction num(v) { return (v === null || v === undefined || v === '') ? null : Number(v); }\nfunction show(v) { return v === null ? 'not measured' : String(v); }\nfunction day(iso) { return iso ? String(iso).slice(0, 16).replace('T', ' ') + ' UTC' : ''; }\n\n// Google Search Console totals (no dimensions). New or low-traffic sites return no rows:\n// we say so instead of showing zeros that look like measurements.\nfunction gscSection(gsc, td) {\n  gsc = gsc || {};\n  const head = '<h3 style=\"margin:16px 0 6px\">Google Search (Search Console, last 28 days)</h3>';\n  if (gsc.error) {\n    const msg = typeof gsc.error === 'object' ? (gsc.error.description || gsc.error.message) : gsc.error;\n    return head + '<p>Search Console data could not be read: ' + escHtml(String(msg).slice(0, 200)) + '</p>';\n  }\n  const row = Array.isArray(gsc.rows) && gsc.rows[0];\n  if (!row) return head + '<p>No search data yet. Google reports clicks and impressions only after the site starts appearing in search results, which takes days to weeks for a new site.</p>';\n  const pos = typeof row.position === 'number' ? Math.round(row.position * 10) / 10 : '';\n  const ctr = typeof row.ctr === 'number' ? (Math.round(row.ctr * 1000) / 10) + '%' : '';\n  return head + `<table style=\"border-collapse:collapse\"><tr><th ${td}>Clicks</th><th ${td}>Impressions</th><th ${td}>CTR</th><th ${td}>Avg. position</th></tr>` +\n    `<tr><td ${td}>${escHtml(row.clicks)}</td><td ${td}>${escHtml(row.impressions)}</td><td ${td}>${escHtml(ctr)}</td><td ${td}>${escHtml(pos)}</td></tr></table>`;\n}\n\nfunction buildReport(runs, findings, now, gsc) {\n  runs = (runs || []).filter(r => r && r.runId)\n    .sort((a, b) => String(b.auditedAt || b.createdAt).localeCompare(String(a.auditedAt || a.createdAt)));\n  if (!runs.length) {\n    return {\n      subject: 'SEO weekly report: no audit runs found',\n      html: '<p>The agent found no saved audit runs. Check the daily schedule and the seo_errors table.</p>',\n      runsInReport: 0\n    };\n  }\n  const latest = runs[0];\n  const oldest = runs[runs.length - 1];\n  const score = num(latest.seoHealthScore), firstScore = num(oldest.seoHealthScore);\n  let trend = 'only one run so far';\n  if (runs.length > 1 && score !== null && firstScore !== null) {\n    const d = score - firstScore;\n    trend = d === 0 ? 'no change' : (d > 0 ? '+' : '') + d + ' since ' + day(oldest.auditedAt).slice(0, 10);\n  }\n  const failed = runs.filter(r => num(r.pagesFailed) > 0).length;\n  const site = String(latest.auditTarget || '').replace(/^https?:\\/\\//, '').replace(/\\/$/, '');\n  const subject = `SEO weekly report: ${site}, score ${show(score)} (${trend})`;\n\n  const latestFindings = (findings || []).filter(f => f && f.runId === latest.runId)\n    .sort((a, b) => num(a.priorityRank) - num(b.priorityRank));\n\n  const td = 'style=\"border:1px solid #ddd;padding:6px 8px;text-align:left\"';\n  const runRows = runs.map(r => `<tr><td ${td}>${escHtml(r.runId)}</td><td ${td}>${escHtml(day(r.auditedAt))}</td>` +\n    `<td ${td}>${escHtml(show(num(r.seoHealthScore)))}</td><td ${td}>${escHtml(r.pagesOk)} / ${escHtml(r.pagesAudited)}</td>` +\n    `<td ${td}>${escHtml(r.high)} / ${escHtml(r.medium)} / ${escHtml(r.low)}</td>` +\n    `<td ${td}>${escHtml(show(num(r.mobileScore)))} / ${escHtml(show(num(r.desktopScore)))}</td></tr>`).join('');\n  const findingRows = latestFindings.length\n    ? latestFindings.map(f => `<tr><td ${td}>${escHtml(f.priority)}</td><td ${td}>${escHtml(f.title)}</td>` +\n        `<td ${td}>${escHtml(f.affectedPages)} of ${escHtml(f.pagesAudited)}</td><td ${td}>${escHtml(f.recommendation)}</td></tr>`).join('')\n    : `<tr><td ${td} colspan=\"4\">No findings saved for this run.</td></tr>`;\n\n  const html = `<div style=\"font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:760px\">\n<h2 style=\"margin:0 0 4px\">SEO weekly report</h2>\n<p style=\"margin:0 0 16px;color:#555\">${escHtml(latest.auditTarget)} · ${runs.length} audit run(s) in this report · generated ${escHtml(day(now))}</p>\n<table style=\"border-collapse:collapse;margin-bottom:16px\">\n<tr><td ${td}><b>SEO health score</b></td><td ${td}>${escHtml(show(score))} (${escHtml(trend)})</td></tr>\n<tr><td ${td}><b>Findings (High / Medium / Low)</b></td><td ${td}>${escHtml(latest.high)} / ${escHtml(latest.medium)} / ${escHtml(latest.low)}</td></tr>\n<tr><td ${td}><b>PageSpeed (mobile / desktop)</b></td><td ${td}>${escHtml(show(num(latest.mobileScore)))} / ${escHtml(show(num(latest.desktopScore)))} · ${escHtml(latest.psiStatus)}</td></tr>\n<tr><td ${td}><b>Runs with failed pages</b></td><td ${td}>${failed} of ${runs.length}</td></tr>\n</table>\n<h3 style=\"margin:16px 0 6px\">Open findings in the latest run (${escHtml(latest.runId)})</h3>\n<table style=\"border-collapse:collapse\"><tr><th ${td}>Priority</th><th ${td}>Finding</th><th ${td}>Pages</th><th ${td}>What to do</th></tr>${findingRows}</table>\n${gscSection(gsc, td)}\n<h3 style=\"margin:16px 0 6px\">Recent runs</h3>\n<table style=\"border-collapse:collapse\"><tr><th ${td}>Run</th><th ${td}>When</th><th ${td}>Score</th><th ${td}>Pages OK</th><th ${td}>High / Med / Low</th><th ${td}>Mobile / Desktop</th></tr>${runRows}</table>\n<p style=\"margin-top:16px\">Full history: <a href=\"${SHEET_URL}\">Google Sheet</a>. The health score is the agent's own formula, not a Google metric. Fixes go live only after a person reviews and merges a pull request.</p>\n</div>`;\n  return { subject, html, runsInReport: runs.length, latestRunId: latest.runId };\n}\n\nif (typeof module !== 'undefined' && typeof $input === 'undefined') {\n  module.exports = { buildReport, gscSection };\n} else {\n  const runs = $('Get Recent Runs').all().map(i => i.json);\n  const findings = $('Get Latest Findings').all().map(i => i.json);\n  const gsc = $input.first() ? $input.first().json : {};\n  return [{ json: buildReport(runs, findings, new Date().toISOString(), gsc) }];\n}\n"
+      }
+    },
+    {
+      "name": "Email Report (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        96
+      ],
+      "executeOnce": true,
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "you@example.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "SEO Growth Agent"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Start (Manual Test)": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Schedule (Mon 07:40)": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Runs": {
+      "main": [
+        [
+          {
+            "node": "Get Latest Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Latest Findings": {
+      "main": [
+        [
+          {
+            "node": "Search Console (28 days)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Console (28 days)": {
+      "main": [
+        [
+          {
+            "node": "Build Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Weekly Report": {
+      "main": [
+        [
+          {
+            "node": "Email Report (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/New_York"
+  }
+}
