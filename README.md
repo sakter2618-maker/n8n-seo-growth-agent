@@ -144,3 +144,6 @@ docs/INTERVIEW_GUIDE.md           how to explain the project
 
 The live test site is [Sutokotha](https://github.com/sakter2618-maker/sutokotha), a demo
 store built for this project with known SEO issues for the agent to find.
+
+## Other portfolio projects
+- [Retail & E-commerce Sales Analytics](https://github.com/sakter2618-maker/retail-sales-analytics): data cleaning in Python and Excel, SQL analysis, a 5-page Power BI report and a Streamlit web dashboard, with validated metrics and business recommendations.
