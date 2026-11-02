@@ -24,6 +24,7 @@ function gscSection(gsc, td) {
     return head + '<p>Search Console data could not be read: ' + escHtml(String(msg).slice(0, 200)) + '</p>';
   }
   const row = Array.isArray(gsc.rows) && gsc.rows[0];
+  if (row && !Number(row.impressions)) return head + '<p>Google has started tracking the site but shows 0 impressions in this period, so there are no clicks, CTR or position to report yet.</p>';
   if (!row) return head + '<p>No search data yet. Google reports clicks and impressions only after the site starts appearing in search results, which takes days to weeks for a new site.</p>';
   const pos = typeof row.position === 'number' ? Math.round(row.position * 10) / 10 : '';
   const ctr = typeof row.ctr === 'number' ? (Math.round(row.ctr * 1000) / 10) + '%' : '';

@@ -199,4 +199,7 @@ test('M8 Search Console section: no rows means "no data yet", errors are shown, 
   assert.match(empty.html, /No search data yet/);
   const [err] = runNode('weekly-report.js', { input: [{ error: { message: 'Forbidden', description: 'not a verified site' } }], nodes: { 'Get Recent Runs': runs, 'Get Latest Findings': [{}] } });
   assert.match(err.html, /could not be read: not a verified site/);
+  const [zero] = runNode('weekly-report.js', { input: [{ rows: [{ clicks: 0, impressions: 0, ctr: 0, position: 0 }] }], nodes: { 'Get Recent Runs': runs, 'Get Latest Findings': [{}] } });
+  assert.match(zero.html, /0 impressions/);
+  assert.ok(!/Avg\. position/.test(zero.html), 'position 0 must not be shown as a measurement');
 });
