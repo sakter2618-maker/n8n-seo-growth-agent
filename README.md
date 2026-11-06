@@ -147,3 +147,7 @@ store built for this project with known SEO issues for the agent to find.
 
 ## Other portfolio projects
 - [Retail & E-commerce Sales Analytics](https://github.com/sakter2618-maker/retail-sales-analytics): data cleaning in Python and Excel, SQL analysis, a 5-page Power BI report and a Streamlit web dashboard, with validated metrics and business recommendations.
+
+## Author
+
+**Salma Akter** · Data Analyst & AI Automation · [salmaakter.me](https://salmaakter.me)
