@@ -99,7 +99,7 @@
         "method": "POST",
         "url": "https://www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fsakter2618-maker.github.io%2Fsutokotha%2F/searchAnalytics/query",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ startDate: $now.minus({ days: 30 }).toFormat(\"yyyy-MM-dd\"), endDate: $now.minus({ days: 2 }).toFormat(\"yyyy-MM-dd\") }) }}",
@@ -120,24 +120,24 @@
       }
     },
     {
-      "name": "Email Report (Gmail)",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.2,
+      "name": "Email Report (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
       "position": [
         1120,
         96
       ],
       "executeOnce": true,
       "parameters": {
-        "resource": "message",
+        "resource": "email",
         "operation": "send",
-        "sendTo": "you@example.com",
+        "fromEmail": "SEO Growth Agent <you@example.com>",
+        "toEmail": "you@example.com",
         "subject": "={{ $json.subject }}",
-        "emailType": "html",
-        "message": "={{ $json.html }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
         "options": {
-          "appendAttribution": false,
-          "senderName": "SEO Growth Agent"
+          "appendAttribution": false
         }
       }
     }
@@ -202,7 +202,7 @@
       "main": [
         [
           {
-            "node": "Email Report (Gmail)",
+            "node": "Email Report (SMTP)",
             "type": "main",
             "index": 0
           }

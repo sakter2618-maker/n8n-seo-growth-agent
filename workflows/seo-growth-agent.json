@@ -675,7 +675,7 @@
         -120
       ],
       "parameters": {
-        "authentication": "oAuth2",
+        "authentication": "serviceAccount",
         "columns": {
           "mappingMode": "autoMapInputData",
           "schema": [],
@@ -709,7 +709,7 @@
         320
       ],
       "parameters": {
-        "authentication": "oAuth2",
+        "authentication": "serviceAccount",
         "columns": {
           "mappingMode": "autoMapInputData",
           "schema": [],
